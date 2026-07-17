@@ -83,6 +83,32 @@ A note.[^note]
     expect(second.fragment).toBe(first.fragment);
   });
 
+  test("keeps authored heading IDs unique from generated GFM footnote targets", async () => {
+    const result = await renderMarkdown(
+      fileSource(`# Footnote label
+
+## user-content-fn-note
+
+## user-content-fnref-note
+
+Reference.[^note]
+
+[^note]: Footnote text.
+`),
+    );
+    const ids = [...result.fragment.matchAll(/\bid="([^"]+)"/gu)].map((match) => match[1]!);
+
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(result.fragment).toContain('<h1 id="footnote-label-2">Footnote label</h1>');
+    expect(result.fragment).toContain('<h2 id="user-content-fn-note-2">user-content-fn-note</h2>');
+    expect(result.fragment).toContain(
+      '<h2 id="user-content-fnref-note-2">user-content-fnref-note</h2>',
+    );
+    expect(result.fragment).toContain('href="#user-content-fn-note"');
+    expect(result.fragment).toContain('href="#user-content-fnref-note"');
+    expect(result.fragment).toContain('aria-describedby="footnote-label"');
+  });
+
   test("captures the first H1 as durable title metadata", async () => {
     const result = await renderMarkdown(
       fileSource("## Before\n\n# First *document* title\n\n# Later title\n"),

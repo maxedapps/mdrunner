@@ -5,7 +5,7 @@ import { markdownToHtml, type Data, type Frontmatter, type HastPluginInput } fro
 
 import { createHtmlDocument } from "./document.ts";
 import { staticExpressiveCodePlugin } from "./plugins/expressive-code.ts";
-import { headingMetadataPlugin } from "./plugins/headings.ts";
+import { headingMetadataPlugins } from "./plugins/headings.ts";
 import { imageEmbeddingPlugin } from "./plugins/images.ts";
 import { mermaidDiagramPlugin } from "./plugins/mermaid.ts";
 import { authoredContentSafetyPlugin } from "./plugins/safety.ts";
@@ -31,7 +31,7 @@ function pluginAssembly(source: MarkdownSource): HastPluginInput[] {
     // Authored transforms must stay before plugins that add trusted generated markup.
     authoredContentSafetyPlugin(source),
     imageEmbeddingPlugin(source),
-    headingMetadataPlugin(),
+    ...headingMetadataPlugins(),
     mermaidDiagramPlugin(source),
     staticExpressiveCodePlugin(source),
   ];

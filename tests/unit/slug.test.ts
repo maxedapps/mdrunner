@@ -25,6 +25,15 @@ describe("createHeadingSlugger", () => {
     expect(slugger.slug("💫")).toBe("section-2");
   });
 
+  test("skips IDs reserved by generated document content", () => {
+    const slugger = createHeadingSlugger();
+    slugger.reserve("footnote-label");
+    slugger.reserve("footnote-label-2");
+
+    expect(slugger.slug("Footnote label")).toBe("footnote-label-3");
+    expect(slugger.slug("Footnote label")).toBe("footnote-label-4");
+  });
+
   test("keeps state isolated between documents", () => {
     expect(createHeadingSlugger().slug("Repeat")).toBe("repeat");
     expect(createHeadingSlugger().slug("Repeat")).toBe("repeat");

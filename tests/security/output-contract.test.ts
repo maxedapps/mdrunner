@@ -47,13 +47,13 @@ describe("pinned upstream adaptations", () => {
 
     const plugins = [
       ...assembly!.matchAll(
-        /\b(authoredContentSafetyPlugin|imageEmbeddingPlugin|headingMetadataPlugin|mermaidDiagramPlugin|staticExpressiveCodePlugin)\(/gu,
+        /\b(authoredContentSafetyPlugin|imageEmbeddingPlugin|headingMetadataPlugins|mermaidDiagramPlugin|staticExpressiveCodePlugin)\(/gu,
       ),
     ].map((match) => match[1]);
     expect(plugins).toEqual([
       "authoredContentSafetyPlugin",
       "imageEmbeddingPlugin",
-      "headingMetadataPlugin",
+      "headingMetadataPlugins",
       "mermaidDiagramPlugin",
       "staticExpressiveCodePlugin",
     ]);

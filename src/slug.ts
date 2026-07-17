@@ -1,4 +1,5 @@
 export interface HeadingSlugger {
+  reserve(id: string): void;
   slug(value: string): string;
 }
 
@@ -12,14 +13,24 @@ export function slugifyHeading(value: string): string {
 
 /** Create document-local slug state. Duplicate suffixes begin at `-2`. */
 export function createHeadingSlugger(): HeadingSlugger {
-  const counts = new Map<string, number>();
+  const used = new Set<string>();
+  const nextSuffix = new Map<string, number>();
 
   return {
+    reserve(id) {
+      used.add(id);
+    },
     slug(value) {
       const base = slugifyHeading(value);
-      const count = (counts.get(base) ?? 0) + 1;
-      counts.set(base, count);
-      return count === 1 ? base : `${base}-${count}`;
+      let suffix = nextSuffix.get(base) ?? 1;
+      let candidate = suffix === 1 ? base : `${base}-${suffix}`;
+      while (used.has(candidate)) {
+        suffix += 1;
+        candidate = `${base}-${suffix}`;
+      }
+      used.add(candidate);
+      nextSuffix.set(base, suffix + 1);
+      return candidate;
     },
   };
 }
