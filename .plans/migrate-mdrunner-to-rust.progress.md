@@ -3,7 +3,7 @@
 - **Template loaded from:** `implement-plan/assets/progress-tracker-template.md`
 - **Plan:** `.plans/migrate-mdrunner-to-rust.md`
 - **Status:** `In progress`
-- **Updated:** `2026-07-17T13:40:42Z`
+- **Updated:** `2026-07-17T14:45:16Z`
 - **Completion:** every requirement is `Verified` or user-approved `Descoped`; reconciliation, validation, and final review pass; no material issue remains open.
 
 ## Coverage
@@ -20,8 +20,8 @@
 | T3.1 | Phase 3: native release file/stdin smoke outside repo and agent-browser `file://` inspection; record only tested target | Phase 2 | Verified | retained HTML paths, prompt exit, visual/network/console evidence, binary hash/size | macOS arm64 release 30,459,840 bytes, SHA-256 `fc0d7345…`; outside-repo file 0.76s and stdin 0.21s, exact retained paths, no mdr process. Agent-browser exact `file://`: 6 visible SVGs, local images loaded, light/dark/mobile responsive, print rule, 0 scripts/console/page errors, no localhost requests. |
 | T3.2a | Phase 3: remove Bun/TypeScript/N-API runtime, build/config/tests, obsolete artifacts/selectors while retaining fixtures/history | T3.1 | Verified | legacy/dependency search; intentional Git inventory | `50cf300` deleted 40 legacy files; parent removed untracked legacy `dist/` and `node_modules/`; active legacy/.ts/obsolete path counts zero; fixtures/styles/history retained. |
 | T3.2b | Phase 3: update README/PROJECT/.gitignore for Rust workflow, behavior, cache/browser/no-server policy and tested target | T3.1 | Verified | documentation inspection plus final checks | Parent inspected README/PROJECT/.gitignore; Cargo behavior/policies and only macOS arm64 qualification documented; M03 complete. |
-| V1 | Final validation: fmt, clippy, tests, release build, file/stdin smoke, browser/manual evidence, legacy search, clean residue | T3.2a–T3.2b | In progress | all exact final gates pass | Pre-review Cargo/legacy gates pass; final post-cutover smoke, residue cleanup and exact status still to record. |
-| V2 | Final reconciliation and fresh plan-backed full read-only review; disposition every finding | V1 | Pending | no open rows/findings/decisions; tracker complete | — |
+| V1 | Final validation: fmt, clippy, tests, release build, file/stdin smoke, browser/manual evidence, legacy search, clean residue | T3.2a–T3.2b | Verified | all exact final gates pass | Post-cutover fmt/clippy, Rust 30/30, release build, file/stdin smoke (1.02s/0.38s), 0 mdr processes, exact `file://` mobile/dark browser check, 6 SVGs, 2 loaded local images, print rule, 0 scripts/errors/localhost, all legacy counts zero, target/smoke/output artifacts removed, Git clean. |
+| V2 | Final reconciliation and fresh plan-backed full read-only review; disposition every finding | V1 | In progress | no open rows/findings/decisions; tracker complete | Full plan reread found no missed implementation row; final reviewer pending. |
 
 ## Batches and evidence
 
@@ -30,7 +30,7 @@
 | B01 / T1.1–T1.3 | Isolated worker `run-mrozoihu-66dec80e27`; bounded additive Rust foundation benefited from focused implementation while parent retained tracker/integration | Phase 1 CLI/source → render → output/browser, joined after complete handoff | Worker owned eight additive Rust/Cargo files in isolated worktree; existing TS/CSS retained; commit `962dc499`, cherry-picked as `8b8b402` | Focused tests, fmt, clippy, full Cargo and Bun phase gates; M01 | Parent inspected complete diff and reran fmt/clippy/Rust 16/Bun 204; M01 no findings. Worktree cleanup retry blocked by absent terminal snapshot; retained live=false. |
 | B02 / T2.1–T2.3 | Isolated worker `run-mrp0815a-7d60cad964`; rows shared Comrak code-block formatting, assets, styles, and representative tests | Phase 2 static code → Mermaid/images → semantic suite on verified Phase 1 | Worker owned ten Cargo/Rust/CSS/test files; child `73361b88`, parent `78e08ad`; no tracker/legacy edits | Focused tests, fmt, clippy, full Cargo, release build, Bun check; M02 | Parent inspected complete diff and reran fmt/clippy/Rust 30/release/Bun 204/audits; M02 no findings. Worktree cleanup retry blocked by absent terminal snapshot; retained live=false. |
 | B03 / T3.1–T3.2b | Parent owned T3.1 real browser/process smoke; isolated writer `run-mrp1ass0-e76df7b6f5` owned legacy cleanup/docs after release evidence | T3.1 passed before destructive T3.2 cutover | Writer changed docs/ignore and deleted legacy files only; child `e4846f1`, parent `50cf300`; Rust/Cargo/styles/fixtures/history unchanged | Release/manual gate, final Rust checks, legacy search, M03 | Parent inspected diff, removed obsolete untracked legacy directories, reran Cargo 30/release and zero-count searches; M03 no findings. Writer worktree cleanup blocked by absent terminal snapshot; retained live=false. |
-| B04 / V1–V2 | Parent final gates/reconciliation plus mandatory fresh read-only final reviewer | Full-plan reconciliation after cutover | Read-only reviewer; tracker parent-owned; no source writer overlap | Complete final gate and MF | In progress |
+| B04 / V1–V2 | Parent final gates/reconciliation plus mandatory fresh read-only final reviewer | Full-plan reconciliation after cutover | Read-only reviewer; tracker parent-owned; no source writer overlap | Complete final gate and MF | Parent reran post-cutover Cargo/release/file+stdin/browser/search/status gates and cleaned owned artifacts; full plan reread complete; MF pending. |
 
 ## Reviews and dispositions
 
@@ -50,6 +50,7 @@
 
 | Plan reference | Deviation / fallback | Reason and impact | Approval needed / received | Evidence |
 |---|---|---|---|---|
+| T2.3 malformed fixture wording | Existing `tests/fixtures/documents/malformed-mermaid.md` is accepted by `render_strict` 0.3.1; use a different renderer-native malformed Mermaid input in `tests/render.rs` instead of adding a compatibility preflight. | Preserves the explicit native-renderer/no-preflight decision while still proving source-aware failure before persistence. No user-visible contract loss. | No approval needed; follows higher-specificity renderer-native decision in plan. | `tests/render.rs::malformed_mermaid_reports_the_fence_line_before_any_persistence_boundary`; 30 tests pass. |
 
 ## Final reconciliation
 
