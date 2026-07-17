@@ -1,0 +1,14 @@
+[package]
+name = "mdr"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.91"
+description = "Render Markdown as self-contained HTML and open it in the default browser"
+publish = false
+
+[dependencies]
+comrak = { version = "0.54.0", default-features = false }
+sha2 = "0.10.9"
+tempfile = "3.23.0"
+url = "2.5.7"
+webbrowser = { version = "1.0.6", default-features = false }
