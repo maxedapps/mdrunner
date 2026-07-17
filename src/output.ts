@@ -75,7 +75,7 @@ export function cacheDigest(source: MarkdownSource): string {
 export function outputPathForSource(source: MarkdownSource, temporaryDirectory = tmpdir()): string {
   const outputName =
     source.kind === "file" ? `${sanitizeOutputStem(source.canonicalPath)}.html` : "stdin.html";
-  return join(temporaryDirectory, "mdrunner", cacheDigest(source), outputName);
+  return join(temporaryDirectory, "mdr", cacheDigest(source), outputName);
 }
 
 /** Replace a completed sibling while retaining/restoring the previous Windows artifact. */

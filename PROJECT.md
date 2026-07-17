@@ -1,12 +1,12 @@
-# mdrunner
+# mdr
 
 ## Overview
 
-`mdrunner` is a small standalone CLI that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
+`mdr` is a small standalone CLI that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
 
 ```bash
-mdrunner ./README.md
-cat README.md | mdrunner
+mdr ./README.md
+cat README.md | mdr
 ```
 
 The command performs all meaningful rendering before the browser opens:
@@ -26,7 +26,7 @@ There is no HTTP server, localhost listener, background daemon, client-side Mark
 
 1. **One obvious command** — accept a Markdown file or piped Markdown, generate the page, open it.
 2. **Generation-time rendering** — the browser receives finished HTML, not work to perform.
-3. **Self-contained output** — mdrunner-owned CSS, diagram SVG, highlighting styles, and local images are inline.
+3. **Self-contained output** — mdr-owned CSS, diagram SVG, highlighting styles, and local images are inline.
 4. **Beautiful defaults** — typography, spacing, code, tables, diagrams, dark mode, and print output work without configuration.
 5. **Safe defaults** — untrusted raw HTML and dangerous URL schemes do not become executable browser content.
 6. **No feature theater** — avoid subcommands, configuration systems, engine selectors, and flags without a demonstrated need.
@@ -37,8 +37,8 @@ There is no HTTP server, localhost listener, background daemon, client-side Mark
 ### Usage
 
 ```bash
-mdrunner <file.md>
-command-producing-markdown | mdrunner
+mdr <file.md>
+command-producing-markdown | mdr
 ```
 
 The CLI has:
@@ -51,7 +51,7 @@ The CLI has:
 
 ### Input
 
-mdrunner chooses one input source without an additional flag:
+mdr chooses one input source without an additional flag:
 
 - With one positional argument, it reads that `.md` file.
 - With no positional argument and non-interactive standard input, it reads UTF-8 Markdown from stdin until EOF.
@@ -68,12 +68,12 @@ mdrunner chooses one input source without an additional flag:
 The generated file is written atomically to a deterministic cache location under the operating system's temporary directory:
 
 ```text
-<tmp>/mdrunner/<hash-of-source-identity>/<source-name>.html
+<tmp>/mdr/<hash-of-source-identity>/<source-name>.html
 ```
 
 For file input, the source identity is the canonical source path and the output uses its filename. For stdin, the identity includes the current working directory and Markdown content, and the output is named `stdin.html`. Repeated input reuses the same output location. A successful run replaces the previous generated file. The file is not deleted when the CLI exits because the browser may still be loading or reloading it.
 
-On success, mdrunner:
+On success, mdr:
 
 1. Prints the generated HTML path.
 2. Opens its `file://` URL in the default browser.
@@ -87,12 +87,12 @@ A generated document must:
 
 - Be a complete HTML5 document with doctype, language, charset, viewport, title, and body.
 - Open directly through `file://` without a server.
-- Contain no external mdrunner runtime assets.
+- Contain no external mdr runtime assets.
 - Contain no Mermaid runtime.
 - Require no JavaScript for Markdown, diagrams, highlighting, or theme selection.
 - Use inline CSS and `prefers-color-scheme` for automatic light/dark rendering.
 - Embed local Markdown images as data URIs.
-- Keep authored remote links and remote image URLs as remote URLs; mdrunner does not fetch arbitrary remote content during generation. A browser may request an authored remote image after opening the result.
+- Keep authored remote links and remote image URLs as remote URLs; mdr does not fetch arbitrary remote content during generation. A browser may request an authored remote image after opening the result.
 - Be responsive and printable.
 - Remain readable when an optional enhancement fails.
 
@@ -272,7 +272,7 @@ Used for generation-time syntax highlighting and code presentation. Runtime Java
 
 Used for generation-time Mermaid-like SVG rendering. It is intentionally chosen over official Mermaid CLI because it requires no Puppeteer, Chromium download, DOM shim, server, or runtime JavaScript.
 
-Its six implemented diagram families and parser tolerance are explicit product boundaries. mdrunner adds minimum-content and known malformed-statement gates, strips generated Google Fonts imports, and validates generated SVG, but does not claim compatibility with the complete official Mermaid grammar.
+Its six implemented diagram families and parser tolerance are explicit product boundaries. mdr adds minimum-content and known malformed-statement gates, strips generated Google Fonts imports, and validates generated SVG, but does not claim compatibility with the complete official Mermaid grammar.
 
 ### Browser opener
 
@@ -370,7 +370,7 @@ Representative documents are generated and checked for:
 - Correct title and language
 - One valid document root
 - Inline product styles
-- No mdrunner external assets
+- No mdr external assets
 - No Mermaid runtime
 - No required runtime JavaScript
 - Valid embedded image data URIs
@@ -414,7 +414,7 @@ The same command must pass in a matching native development or release environme
 
 A small end-to-end validation may open the generated `file://` document with `Bun.WebView` where supported and assert:
 
-- The document loads without network requests for mdrunner assets.
+- The document loads without network requests for mdr assets.
 - Static SVG diagrams are present and visible.
 - Highlighted code is visible.
 - No runtime rendering is needed.
@@ -471,8 +471,8 @@ Potential features such as KaTeX rendering, official Mermaid through `Bun.WebVie
 The initial product is complete when a user can run either:
 
 ```bash
-mdrunner ./README.md
-cat README.md | mdrunner
+mdr ./README.md
+cat README.md | mdr
 ```
 
 and receive a beautiful, safe, self-contained HTML file that:

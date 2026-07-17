@@ -62,13 +62,13 @@ describe("complete static document", () => {
   test("inlines product and Expressive Code CSS with responsive light/dark/print styling", async () => {
     const html = await renderDocument(source(representativeMarkdown));
 
-    expect(html).toContain("<style data-mdrunner-styles>");
-    expect(html).toContain("--mdrunner-background:");
-    expect(html).toContain("--mdrunner-foreground:");
-    expect(html).toContain("--mdrunner-surface:");
-    expect(html).toContain("--mdrunner-muted:");
-    expect(html).toContain("--mdrunner-border:");
-    expect(html).toContain("--mdrunner-accent:");
+    expect(html).toContain("<style data-mdr-styles>");
+    expect(html).toContain("--mdr-background:");
+    expect(html).toContain("--mdr-foreground:");
+    expect(html).toContain("--mdr-surface:");
+    expect(html).toContain("--mdr-muted:");
+    expect(html).toContain("--mdr-border:");
+    expect(html).toContain("--mdr-accent:");
     expect(html).toContain("@media (prefers-color-scheme: dark)");
     expect(html).toContain("@media print");
     expect(html).toContain(".markdown-body table");
@@ -122,16 +122,16 @@ describe("final document invariant validator", () => {
       "CSS import",
       (html: string) =>
         html.replace(
-          "<style data-mdrunner-styles>",
-          '<style data-mdrunner-styles>@import url("https://x.test/x.css");',
+          "<style data-mdr-styles>",
+          '<style data-mdr-styles>@import url("https://x.test/x.css");',
         ),
     ],
     [
       "font definition",
       (html: string) =>
         html.replace(
-          "<style data-mdrunner-styles>",
-          "<style data-mdrunner-styles>@font-face { font-family: x; src: local(x); }",
+          "<style data-mdr-styles>",
+          "<style data-mdr-styles>@font-face { font-family: x; src: local(x); }",
         ),
     ],
     ["event handler", (html: string) => html.replace("<h1>", '<h1 onclick="bad()">')],

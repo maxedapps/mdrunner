@@ -70,7 +70,7 @@ function isAllowedRemote(value: string, source: MarkdownSource, node: Positioned
 export function imageEmbeddingPlugin(source: MarkdownSource): HastPluginInput {
   return () =>
     defineHastPlugin({
-      name: "mdrunner-local-image-embedding",
+      name: "mdr-local-image-embedding",
       element: {
         filter: ["img"],
         async visit(node, context) {

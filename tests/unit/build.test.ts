@@ -21,21 +21,20 @@ import { withTemporaryDirectory } from "../helpers/temp-dir.ts";
 
 const EXPECTED_TARGETS = {
   "bun-darwin-arm64":
-    "@bruits/satteri-darwin-arm64|satteri_napi.darwin-arm64.node|mdrunner|mdrunner-darwin-arm64",
-  "bun-darwin-x64":
-    "@bruits/satteri-darwin-x64|satteri_napi.darwin-x64.node|mdrunner|mdrunner-darwin-x64",
+    "@bruits/satteri-darwin-arm64|satteri_napi.darwin-arm64.node|mdr|mdr-darwin-arm64",
+  "bun-darwin-x64": "@bruits/satteri-darwin-x64|satteri_napi.darwin-x64.node|mdr|mdr-darwin-x64",
   "bun-linux-arm64":
-    "@bruits/satteri-linux-arm64-gnu|satteri_napi.linux-arm64-gnu.node|mdrunner|mdrunner-linux-arm64",
+    "@bruits/satteri-linux-arm64-gnu|satteri_napi.linux-arm64-gnu.node|mdr|mdr-linux-arm64",
   "bun-linux-arm64-musl":
-    "@bruits/satteri-linux-arm64-musl|satteri_napi.linux-arm64-musl.node|mdrunner|mdrunner-linux-arm64-musl",
+    "@bruits/satteri-linux-arm64-musl|satteri_napi.linux-arm64-musl.node|mdr|mdr-linux-arm64-musl",
   "bun-linux-x64":
-    "@bruits/satteri-linux-x64-gnu|satteri_napi.linux-x64-gnu.node|mdrunner|mdrunner-linux-x64",
+    "@bruits/satteri-linux-x64-gnu|satteri_napi.linux-x64-gnu.node|mdr|mdr-linux-x64",
   "bun-linux-x64-musl":
-    "@bruits/satteri-linux-x64-musl|satteri_napi.linux-x64-musl.node|mdrunner|mdrunner-linux-x64-musl",
+    "@bruits/satteri-linux-x64-musl|satteri_napi.linux-x64-musl.node|mdr|mdr-linux-x64-musl",
   "bun-windows-arm64":
-    "@bruits/satteri-win32-arm64-msvc|satteri_napi.win32-arm64-msvc.node|mdrunner.exe|mdrunner-windows-arm64.exe",
+    "@bruits/satteri-win32-arm64-msvc|satteri_napi.win32-arm64-msvc.node|mdr.exe|mdr-windows-arm64.exe",
   "bun-windows-x64":
-    "@bruits/satteri-win32-x64-msvc|satteri_napi.win32-x64-msvc.node|mdrunner.exe|mdrunner-windows-x64.exe",
+    "@bruits/satteri-win32-x64-msvc|satteri_napi.win32-x64-msvc.node|mdr.exe|mdr-windows-x64.exe",
 } as const satisfies Record<SupportedBuildTarget, string>;
 
 async function fixturePaths(root: string) {
@@ -49,10 +48,10 @@ async function fixturePaths(root: string) {
     paths: {
       bootstrapPath: join(scripts, ".build-bootstrap.ts"),
       bootstrapSource: createBootstrapSource("/addon.node", "/cli.ts"),
-      stagingPath: join(dist, ".mdrunner-staging"),
-      outputPath: join(dist, "mdrunner"),
-      backupPath: join(dist, ".mdrunner-backup"),
-      alternateOutputPath: join(dist, "mdrunner.exe"),
+      stagingPath: join(dist, ".mdr-staging"),
+      outputPath: join(dist, "mdr"),
+      backupPath: join(dist, ".mdr-backup"),
+      alternateOutputPath: join(dist, "mdr.exe"),
     },
   };
 }
@@ -144,7 +143,7 @@ describe("bootstrap and owned build lifecycle", () => {
       });
       expect(await readFile(paths.outputPath, "utf8")).toBe("new complete");
       expect(await readdir(scripts)).toEqual([]);
-      expect(await readdir(dist)).toEqual(["mdrunner"]);
+      expect(await readdir(dist)).toEqual(["mdr"]);
     });
   });
 
@@ -160,7 +159,7 @@ describe("bootstrap and owned build lifecycle", () => {
       ).rejects.toThrow("build: compiler probe failed");
       expect(await readFile(paths.outputPath, "utf8")).toBe("last valid");
       expect(await readdir(scripts)).toEqual([]);
-      expect(await readdir(dist)).toEqual(["mdrunner"]);
+      expect(await readdir(dist)).toEqual(["mdr"]);
     });
   });
 
@@ -192,7 +191,7 @@ describe("bootstrap and owned build lifecycle", () => {
 test("Windows publication restores the prior artifact when installation fails", async () => {
   await withTemporaryDirectory(async (root) => {
     const staging = join(root, "staging.exe");
-    const output = join(root, "mdrunner.exe");
+    const output = join(root, "mdr.exe");
     const backup = join(root, "backup.exe");
     await writeFile(staging, "new complete");
     await writeFile(output, "previous valid");
@@ -212,6 +211,6 @@ test("Windows publication restores the prior artifact when installation fails", 
     );
     expect(await readFile(output, "utf8")).toBe("previous valid");
     expect(await readFile(staging, "utf8")).toBe("new complete");
-    expect((await readdir(root)).sort()).toEqual(["mdrunner.exe", "staging.exe"].sort());
+    expect((await readdir(root)).sort()).toEqual(["mdr.exe", "staging.exe"].sort());
   });
 });

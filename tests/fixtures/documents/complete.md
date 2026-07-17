@@ -31,7 +31,7 @@ A **finished** document with _emphasis_, ~~obsolete text~~, `inline code`, an
 
 ![Local SVG](assets/safe.svg "embedded vector")
 
-![Authored remote image](https://images.example.test/preview.png "not fetched by mdrunner")
+![Authored remote image](https://images.example.test/preview.png "not fetched by mdr")
 
 <script data-origin="authored">alert("must remain text")</script>
 

@@ -14,13 +14,13 @@ const GOOGLE_FONT_IMPORT =
   /^\s*@import\s+url\(["']https:\/\/fonts\.googleapis\.com\/css2\?family=[^"'\r\n)]+["']\);\s*$/gim;
 
 const RENDER_OPTIONS: Readonly<RenderOptions> = Object.freeze({
-  bg: "var(--mdrunner-background)",
-  fg: "var(--mdrunner-foreground)",
-  line: "var(--mdrunner-border)",
-  accent: "var(--mdrunner-accent)",
-  muted: "var(--mdrunner-muted)",
-  surface: "var(--mdrunner-surface)",
-  border: "var(--mdrunner-border)",
+  bg: "var(--mdr-background)",
+  fg: "var(--mdr-foreground)",
+  line: "var(--mdr-border)",
+  accent: "var(--mdr-accent)",
+  muted: "var(--mdr-muted)",
+  surface: "var(--mdr-surface)",
+  border: "var(--mdr-border)",
   font: "system-ui",
   transparent: true,
   interactive: false,
@@ -281,7 +281,7 @@ export function mermaidDiagramPlugin(
 ): HastPluginInput {
   return () =>
     defineHastPlugin({
-      name: "mdrunner-mermaid",
+      name: "mdr-mermaid",
       element: {
         filter: ["pre"],
         visit(node, context) {

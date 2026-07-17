@@ -19,7 +19,7 @@ import { withTemporaryDirectory } from "../helpers/temp-dir.ts";
 const projectRoot = join(import.meta.dir, "../..");
 const buildScript = join(projectRoot, "scripts/build.ts");
 const fixtureRoot = join(projectRoot, "tests/fixtures/documents");
-const artifactName = process.platform === "win32" ? "mdrunner.exe" : "mdrunner";
+const artifactName = process.platform === "win32" ? "mdr.exe" : "mdr";
 const artifactPath = join(projectRoot, "dist", artifactName);
 const encoder = new TextEncoder();
 
@@ -67,7 +67,7 @@ async function createOpenerShim(root: string): Promise<{
     const executable = join(directory, "powershell.exe");
     await writeFile(
       source,
-      `await Bun.write(process.env.MDRUNNER_OPEN_CAPTURE!, JSON.stringify(Bun.argv));\n`,
+      `await Bun.write(process.env.MDR_OPEN_CAPTURE!, JSON.stringify(Bun.argv));\n`,
     );
     const target = process.arch === "arm64" ? "bun-windows-arm64" : "bun-windows-x64";
     const result = await Bun.build({
@@ -80,7 +80,7 @@ async function createOpenerShim(root: string): Promise<{
     const executable = join(directory, process.platform === "darwin" ? "open" : "xdg-open");
     await writeFile(
       executable,
-      `#!${process.execPath}\nawait Bun.write(process.env.MDRUNNER_OPEN_CAPTURE!, JSON.stringify(Bun.argv.slice(2)));\n`,
+      `#!${process.execPath}\nawait Bun.write(process.env.MDR_OPEN_CAPTURE!, JSON.stringify(Bun.argv.slice(2)));\n`,
     );
     await chmod(executable, 0o700);
   }
@@ -115,7 +115,7 @@ async function runExecutable(options: {
       TMPDIR: options.temporaryDirectory,
       TMP: options.temporaryDirectory,
       TEMP: options.temporaryDirectory,
-      MDRUNNER_OPEN_CAPTURE: options.capture,
+      MDR_OPEN_CAPTURE: options.capture,
     },
     stdin: options.stdin === undefined ? "ignore" : encoder.encode(options.stdin),
     stdout: "pipe",

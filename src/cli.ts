@@ -8,8 +8,8 @@ import { writeOutput } from "./output.ts";
 import { renderDocument } from "./render.ts";
 import { readMarkdownSource } from "./source.ts";
 
-export const USAGE_TEXT = `Usage: mdrunner <file.md>
-       command-producing-markdown | mdrunner`;
+export const USAGE_TEXT = `Usage: mdr <file.md>
+       command-producing-markdown | mdr`;
 
 async function main(args: readonly string[]): Promise<void> {
   const selection = await readMarkdownSource(args);

@@ -32,13 +32,13 @@ export function targetConfig(target: SupportedBuildTarget) {
     bunTarget: target,
     packageName,
     addonFile,
-    outputFile: target.startsWith("bun-windows-") ? "mdrunner.exe" : "mdrunner",
+    outputFile: target.startsWith("bun-windows-") ? "mdr.exe" : "mdr",
   } as const;
 }
 
 /** Keep explicitly targeted artifacts side by side in `dist`. */
 export function targetArtifactFile(target: SupportedBuildTarget): string {
-  const name = target.replace(/^bun-/, "mdrunner-");
+  const name = target.replace(/^bun-/, "mdr-");
   return target.startsWith("bun-windows-") ? `${name}.exe` : name;
 }
 
@@ -282,9 +282,9 @@ async function buildTarget(
   const id = `${process.pid}-${crypto.randomUUID()}`;
   const bootstrapPath = join(projectRoot, "scripts/.build-bootstrap.ts");
   const extension = outputFile.endsWith(".exe") ? ".exe" : "";
-  const stagingPath = join(distPath, `.mdrunner-${id}${extension}`);
+  const stagingPath = join(distPath, `.mdr-${id}${extension}`);
   const outputPath = join(distPath, outputFile);
-  const backupPath = join(distPath, `.mdrunner-backup-${id}${extension}`);
+  const backupPath = join(distPath, `.mdr-backup-${id}${extension}`);
   const alternateOutputPath = join(
     distPath,
     outputFile.endsWith(".exe") ? outputFile.slice(0, -4) : `${outputFile}.exe`,

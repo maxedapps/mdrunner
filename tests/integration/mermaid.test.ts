@@ -51,8 +51,8 @@ describe("static Mermaid integration", () => {
       expect(openingSvg).toContain('viewBox="');
       expect(openingSvg).toContain('width="100%"');
       expect(openingSvg).toContain('height="auto"');
-      expect(openingSvg).toContain("--bg:var(--mdrunner-background)");
-      expect(openingSvg).toContain("--fg:var(--mdrunner-foreground)");
+      expect(openingSvg).toContain("--bg:var(--mdr-background)");
+      expect(openingSvg).toContain("--fg:var(--mdr-foreground)");
       expect(openingSvg).not.toContain("background:var(--bg)");
       expect(html).toContain("font-family: 'system-ui', system-ui, sans-serif");
       expect(html).not.toContain("language-mermaid");

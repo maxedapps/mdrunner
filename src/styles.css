@@ -1,17 +1,17 @@
 :root {
   color-scheme: light dark;
-  --mdrunner-background: #ffffff;
-  --mdrunner-foreground: #1f2328;
-  --mdrunner-surface: #f6f8fa;
-  --mdrunner-muted: #59636e;
-  --mdrunner-border: #d1d9e0;
-  --mdrunner-accent: #0969da;
-  --mdrunner-accent-contrast: #ffffff;
-  --mdrunner-code-background: #eff1f3;
-  --mdrunner-quote-border: #8c959f;
-  --mdrunner-table-stripe: #f6f8fa;
-  --mdrunner-focus: #0550ae;
-  --mdrunner-content-width: 78ch;
+  --mdr-background: #ffffff;
+  --mdr-foreground: #1f2328;
+  --mdr-surface: #f6f8fa;
+  --mdr-muted: #59636e;
+  --mdr-border: #d1d9e0;
+  --mdr-accent: #0969da;
+  --mdr-accent-contrast: #ffffff;
+  --mdr-code-background: #eff1f3;
+  --mdr-quote-border: #8c959f;
+  --mdr-table-stripe: #f6f8fa;
+  --mdr-focus: #0550ae;
+  --mdr-content-width: 78ch;
   font-family:
     ui-sans-serif,
     system-ui,
@@ -25,17 +25,17 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --mdrunner-background: #0d1117;
-    --mdrunner-foreground: #e6edf3;
-    --mdrunner-surface: #161b22;
-    --mdrunner-muted: #9da7b1;
-    --mdrunner-border: #30363d;
-    --mdrunner-accent: #58a6ff;
-    --mdrunner-accent-contrast: #0d1117;
-    --mdrunner-code-background: #20262e;
-    --mdrunner-quote-border: #6e7681;
-    --mdrunner-table-stripe: #161b22;
-    --mdrunner-focus: #79c0ff;
+    --mdr-background: #0d1117;
+    --mdr-foreground: #e6edf3;
+    --mdr-surface: #161b22;
+    --mdr-muted: #9da7b1;
+    --mdr-border: #30363d;
+    --mdr-accent: #58a6ff;
+    --mdr-accent-contrast: #0d1117;
+    --mdr-code-background: #20262e;
+    --mdr-quote-border: #6e7681;
+    --mdr-table-stripe: #161b22;
+    --mdr-focus: #79c0ff;
   }
 }
 
@@ -46,22 +46,22 @@
 }
 
 html {
-  background: var(--mdrunner-background);
-  color: var(--mdrunner-foreground);
+  background: var(--mdr-background);
+  color: var(--mdr-foreground);
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-width: 0;
   margin: 0;
-  background: var(--mdrunner-background);
-  color: var(--mdrunner-foreground);
+  background: var(--mdr-background);
+  color: var(--mdr-foreground);
   font-size: 1rem;
   line-height: 1.65;
 }
 
 .markdown-body {
-  width: min(calc(100% - 2rem), var(--mdrunner-content-width));
+  width: min(calc(100% - 2rem), var(--mdr-content-width));
   margin-inline: auto;
   padding-block: clamp(2rem, 6vw, 4.5rem);
   overflow-wrap: break-word;
@@ -76,13 +76,13 @@ body {
 }
 
 .markdown-body :focus-visible {
-  outline: 3px solid var(--mdrunner-focus);
+  outline: 3px solid var(--mdr-focus);
   outline-offset: 3px;
   border-radius: 0.15rem;
 }
 
 .markdown-body a {
-  color: var(--mdrunner-accent);
+  color: var(--mdr-accent);
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.16em;
 }
@@ -98,7 +98,7 @@ body {
 .markdown-body h5,
 .markdown-body h6 {
   margin-block: 1.75em 0.65em;
-  color: var(--mdrunner-foreground);
+  color: var(--mdr-foreground);
   font-weight: 650;
   line-height: 1.25;
   letter-spacing: -0.015em;
@@ -107,13 +107,13 @@ body {
 
 .markdown-body h1 {
   padding-bottom: 0.35em;
-  border-bottom: 1px solid var(--mdrunner-border);
+  border-bottom: 1px solid var(--mdr-border);
   font-size: clamp(2rem, 6vw, 2.75rem);
 }
 
 .markdown-body h2 {
   padding-bottom: 0.25em;
-  border-bottom: 1px solid var(--mdrunner-border);
+  border-bottom: 1px solid var(--mdr-border);
   font-size: clamp(1.5rem, 4vw, 2rem);
 }
 
@@ -166,14 +166,14 @@ body {
   width: 1em;
   height: 1em;
   margin: 0;
-  accent-color: var(--mdrunner-accent);
+  accent-color: var(--mdr-accent);
 }
 
 .markdown-body blockquote {
   margin-inline: 0;
   padding: 0.1rem 1rem;
-  border-left: 0.25rem solid var(--mdrunner-quote-border);
-  color: var(--mdrunner-muted);
+  border-left: 0.25rem solid var(--mdr-quote-border);
+  color: var(--mdr-muted);
 }
 
 .markdown-body blockquote > :first-child {
@@ -188,7 +188,7 @@ body {
   height: 1px;
   margin-block: 2rem;
   border: 0;
-  background: var(--mdrunner-border);
+  background: var(--mdr-border);
 }
 
 .markdown-body table {
@@ -204,18 +204,18 @@ body {
 .markdown-body th,
 .markdown-body td {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--mdrunner-border);
+  border: 1px solid var(--mdr-border);
   text-align: left;
   vertical-align: top;
 }
 
 .markdown-body th {
-  background: var(--mdrunner-surface);
+  background: var(--mdr-surface);
   font-weight: 650;
 }
 
 .markdown-body tbody tr:nth-child(even) {
-  background: var(--mdrunner-table-stripe);
+  background: var(--mdr-table-stripe);
 }
 
 .markdown-body code,
@@ -227,18 +227,18 @@ body {
 
 .markdown-body :not(pre) > code {
   padding: 0.14em 0.35em;
-  border: 1px solid color-mix(in srgb, var(--mdrunner-border) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mdr-border) 72%, transparent);
   border-radius: 0.3rem;
-  background: var(--mdrunner-code-background);
+  background: var(--mdr-code-background);
 }
 
 .markdown-body pre {
   max-width: 100%;
   padding: 1rem;
   overflow-x: auto;
-  border: 1px solid var(--mdrunner-border);
+  border: 1px solid var(--mdr-border);
   border-radius: 0.5rem;
-  background: var(--mdrunner-surface);
+  background: var(--mdr-surface);
   line-height: 1.5;
   tab-size: 2;
 }
@@ -267,9 +267,9 @@ body {
   margin-inline: 0;
   padding: clamp(0.5rem, 2vw, 1rem);
   overflow-x: auto;
-  border: 1px solid var(--mdrunner-border);
+  border: 1px solid var(--mdr-border);
   border-radius: 0.6rem;
-  background: var(--mdrunner-surface);
+  background: var(--mdr-surface);
 }
 
 .markdown-body .mermaid-diagram svg {
@@ -283,8 +283,8 @@ body {
 .markdown-body [data-footnotes] {
   margin-top: 3rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--mdrunner-border);
-  color: var(--mdrunner-muted);
+  border-top: 1px solid var(--mdr-border);
+  color: var(--mdr-muted);
   font-size: 0.9rem;
 }
 
@@ -296,7 +296,7 @@ body {
 
 .markdown-body details {
   padding: 0.75rem 1rem;
-  border: 1px solid var(--mdrunner-border);
+  border: 1px solid var(--mdr-border);
   border-radius: 0.4rem;
 }
 
@@ -307,7 +307,7 @@ body {
 
 @media (max-width: 40rem) {
   .markdown-body {
-    width: min(calc(100% - 1.25rem), var(--mdrunner-content-width));
+    width: min(calc(100% - 1.25rem), var(--mdr-content-width));
     padding-block: 1.5rem 2.5rem;
   }
 
@@ -324,15 +324,15 @@ body {
 
   :root {
     color-scheme: light;
-    --mdrunner-background: #ffffff;
-    --mdrunner-foreground: #000000;
-    --mdrunner-surface: #f3f3f3;
-    --mdrunner-muted: #3f3f3f;
-    --mdrunner-border: #777777;
-    --mdrunner-accent: #000000;
-    --mdrunner-code-background: #f3f3f3;
-    --mdrunner-quote-border: #555555;
-    --mdrunner-table-stripe: #f7f7f7;
+    --mdr-background: #ffffff;
+    --mdr-foreground: #000000;
+    --mdr-surface: #f3f3f3;
+    --mdr-muted: #3f3f3f;
+    --mdr-border: #777777;
+    --mdr-accent: #000000;
+    --mdr-code-background: #f3f3f3;
+    --mdr-quote-border: #555555;
+    --mdr-table-stripe: #f7f7f7;
   }
 
   body {

@@ -7,9 +7,7 @@ export interface TemporaryDirectory {
   cleanup(): Promise<void>;
 }
 
-export async function createTemporaryDirectory(
-  prefix = "mdrunner-test-",
-): Promise<TemporaryDirectory> {
+export async function createTemporaryDirectory(prefix = "mdr-test-"): Promise<TemporaryDirectory> {
   const path = await mkdtemp(join(tmpdir(), prefix));
   let cleaned = false;
   return {

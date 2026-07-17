@@ -1,13 +1,13 @@
-# mdrunner
+# mdr
 
 Render one Markdown document as polished, self-contained HTML, open it through `file://`, and exit.
 
 ```bash
-mdrunner notes.md
-cat notes.md | mdrunner
+mdr notes.md
+cat notes.md | mdr
 ```
 
-`mdrunner` accepts exactly one `.md` path or Markdown from redirected stdin. YAML and TOML frontmatter are recognized and ignored.
+`mdr` accepts exactly one `.md` path or Markdown from redirected stdin. YAML and TOML frontmatter are recognized and ignored.
 
 ## Output
 
@@ -35,7 +35,7 @@ bun install --frozen-lockfile
 
 ## Build commands
 
-Build the current native platform as `dist/mdrunner` or `dist/mdrunner.exe`:
+Build the current native platform as `dist/mdr` or `dist/mdr.exe`:
 
 ```bash
 bun run build
@@ -65,14 +65,14 @@ The named commands install the matching locked optional Sätteri addon before co
 Targeted artifacts coexist in `dist`:
 
 ```text
-dist/mdrunner-darwin-arm64
-dist/mdrunner-darwin-x64
-dist/mdrunner-linux-arm64
-dist/mdrunner-linux-arm64-musl
-dist/mdrunner-linux-x64
-dist/mdrunner-linux-x64-musl
-dist/mdrunner-windows-arm64.exe
-dist/mdrunner-windows-x64.exe
+dist/mdr-darwin-arm64
+dist/mdr-darwin-x64
+dist/mdr-linux-arm64
+dist/mdr-linux-arm64-musl
+dist/mdr-linux-x64
+dist/mdr-linux-x64-musl
+dist/mdr-windows-arm64.exe
+dist/mdr-windows-x64.exe
 ```
 
 You can still call the lower-level target selector directly, but the corresponding addon must already be installed:
@@ -112,16 +112,16 @@ Build and run the native executable:
 
 ```bash
 bun run build
-./dist/mdrunner README.md
-cat README.md | ./dist/mdrunner
+./dist/mdr README.md
+cat README.md | ./dist/mdr
 ```
 
 On Windows:
 
 ```powershell
 bun run build
-.\dist\mdrunner.exe README.md
-Get-Content README.md | .\dist\mdrunner.exe
+.\dist\mdr.exe README.md
+Get-Content README.md | .\dist\mdr.exe
 ```
 
 Run the automated standalone test:

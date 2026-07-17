@@ -5,8 +5,8 @@ import { pathToFileURL } from "node:url";
 
 import { withTemporaryDirectory } from "../helpers/temp-dir.ts";
 
-const USAGE_TEXT = `Usage: mdrunner <file.md>
-       command-producing-markdown | mdrunner`;
+const USAGE_TEXT = `Usage: mdr <file.md>
+       command-producing-markdown | mdr`;
 const cliPath = join(import.meta.dir, "../../src/cli.ts");
 const encoder = new TextEncoder();
 const openerName =
@@ -33,7 +33,7 @@ async function makeOpenerShim(root: string): Promise<{
   const executable = join(directory, openerName);
   await writeFile(
     executable,
-    '#!/bin/sh\nprintf "%s\\ncomplete\\n" "$1" > "$MDRUNNER_OPEN_CAPTURE"\nexit "${MDRUNNER_OPEN_EXIT:-0}"\n',
+    '#!/bin/sh\nprintf "%s\\ncomplete\\n" "$1" > "$MDR_OPEN_CAPTURE"\nexit "${MDR_OPEN_EXIT:-0}"\n',
   );
   await chmod(executable, 0o700);
   return { directory, capture };
@@ -57,10 +57,8 @@ async function runCli(options: {
     env: {
       ...process.env,
       PATH: path,
-      ...(options.capture === undefined ? {} : { MDRUNNER_OPEN_CAPTURE: options.capture }),
-      ...(options.openerExit === undefined
-        ? {}
-        : { MDRUNNER_OPEN_EXIT: String(options.openerExit) }),
+      ...(options.capture === undefined ? {} : { MDR_OPEN_CAPTURE: options.capture }),
+      ...(options.openerExit === undefined ? {} : { MDR_OPEN_EXIT: String(options.openerExit) }),
     },
     stdin:
       options.stdin === undefined
@@ -323,7 +321,7 @@ test.skipIf(process.platform === "win32")(
         env: {
           ...process.env,
           PATH: `${directory}:${process.env.PATH ?? ""}`,
-          MDRUNNER_OPEN_CAPTURE: capture,
+          MDR_OPEN_CAPTURE: capture,
         },
         terminal: {
           cols: 80,

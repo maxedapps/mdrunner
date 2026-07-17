@@ -41,7 +41,7 @@ describe("deterministic cache paths", () => {
     expect(outputPathForSource(file, "/cache root")).toBe(
       join(
         "/cache root",
-        "mdrunner",
+        "mdr",
         "f169b6d85ba7fa48d07076425080cfa1993638e608710cee9ae8e50e6926428c",
         "Notes & Résumé.html",
       ),
@@ -118,7 +118,7 @@ describe("Windows completed-file replacement", () => {
   test("uses a backup when rename-over-existing is refused", async () => {
     await withTemporaryDirectory(async (directory) => {
       const temporary = join(directory, "candidate.tmp");
-      const destination = join(directory, "mdrunner.exe");
+      const destination = join(directory, "mdr.exe");
       const backup = join(directory, "backup.exe");
       await writeFile(temporary, "new complete");
       await writeFile(destination, "previous valid");
@@ -135,14 +135,14 @@ describe("Windows completed-file replacement", () => {
 
       await replaceCompletedFile(temporary, destination, backup, "win32", operations);
       expect(await readFile(destination, "utf8")).toBe("new complete");
-      expect(await readdir(directory)).toEqual(["mdrunner.exe"]);
+      expect(await readdir(directory)).toEqual(["mdr.exe"]);
     });
   });
 
   test("restores the prior destination when installation fails", async () => {
     await withTemporaryDirectory(async (directory) => {
       const temporary = join(directory, "candidate.tmp");
-      const destination = join(directory, "mdrunner.exe");
+      const destination = join(directory, "mdr.exe");
       const backup = join(directory, "backup.exe");
       await writeFile(temporary, "new complete");
       await writeFile(destination, "previous valid");
@@ -163,7 +163,7 @@ describe("Windows completed-file replacement", () => {
       ).rejects.toThrow("EACCES");
       expect(await readFile(destination, "utf8")).toBe("previous valid");
       expect(await readFile(temporary, "utf8")).toBe("new complete");
-      expect(await readdir(directory)).toEqual(["candidate.tmp", "mdrunner.exe"]);
+      expect(await readdir(directory)).toEqual(["candidate.tmp", "mdr.exe"]);
     });
   });
 });

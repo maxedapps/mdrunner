@@ -18,7 +18,7 @@ export function headingMetadataPlugins(): readonly [HastPluginInput, HastPluginI
   const slugger = createHeadingSlugger();
 
   const reserveExistingIds = defineHastPlugin({
-    name: "mdrunner-heading-id-reservations",
+    name: "mdr-heading-id-reservations",
     element: {
       // Sätteri treats an empty element filter as all HAST elements.
       filter: [],
@@ -31,7 +31,7 @@ export function headingMetadataPlugins(): readonly [HastPluginInput, HastPluginI
 
   let hasTitle = false;
   const addHeadingMetadata = defineHastPlugin({
-    name: "mdrunner-heading-metadata",
+    name: "mdr-heading-metadata",
     element: {
       filter: HEADING_TAGS,
       visit(node, context) {

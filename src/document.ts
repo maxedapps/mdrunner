@@ -115,7 +115,7 @@ export function validateFinalDocument(html: string): void {
   }
   if (!html.includes(csp)) fail("content security policy is missing or altered");
   if (!/<title>[^<]*<\/title>/u.test(html)) fail("escaped document title is missing");
-  if (countMatches(html, /<style data-mdrunner-styles>/gu) !== 1) {
+  if (countMatches(html, /<style data-mdr-styles>/gu) !== 1) {
     fail("inline product styles are missing");
   }
   const markup = withoutInlineStyleContents(html);
@@ -135,7 +135,7 @@ export function createHtmlDocument(title: string, fragment: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="${DOCUMENT_CSP}">
 <title>${escapeHtmlText(title)}</title>
-<style data-mdrunner-styles>
+<style data-mdr-styles>
 ${productStyles}
 </style>
 </head>

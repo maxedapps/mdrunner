@@ -10,7 +10,7 @@ import type { MarkdownSource } from "../source.ts";
 import { sourceLocation, type PositionedNode } from "./source-location.ts";
 
 const QUIET_LOGGER = Object.freeze({
-  label: "mdrunner-code",
+  label: "mdr-code",
   debug(_message: string) {},
   info(_message: string) {},
   warn(_message: string) {},

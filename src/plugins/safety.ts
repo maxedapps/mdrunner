@@ -103,7 +103,7 @@ function safeLinkUrl(rawValue: string, source: MarkdownSource, node: PositionedN
 export function authoredContentSafetyPlugin(source: MarkdownSource): HastPluginInput {
   return () =>
     defineHastPlugin({
-      name: "mdrunner-authored-content-safety",
+      name: "mdr-authored-content-safety",
       raw(node, context) {
         context.replaceNode(node, { type: "text", value: node.value });
       },
