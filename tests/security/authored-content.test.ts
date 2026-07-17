@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { markdownToHtml } from "satteri";
 
 import { ExpectedError, errorCodes, formatError } from "../../src/errors.ts";
+import { authoredContentSafetyPlugin } from "../../src/plugins/safety.ts";
 import { renderMarkdown } from "../../src/render.ts";
 import type { MarkdownSource } from "../../src/source.ts";
 import { withTemporaryDirectory } from "../helpers/temp-dir.ts";
@@ -108,18 +110,18 @@ describe("authored anchor URL policy", () => {
 });
 
 describe("authored image URL pre-policy", () => {
-  test("preserves remote HTTP(S) and safe relative candidates for image embedding", async () => {
-    const result = await renderMarkdown(
-      fileSource(`![remote](https://images.example.test/picture.png?q=1)
+  test("preserves remote HTTP(S) and safe relative candidates for the next image plugin", async () => {
+    const markdown = `![remote](https://images.example.test/picture.png?q=1)
 
 ![local](images/diagram%20one.svg#preview)
-`),
-    );
+`;
+    const source = fileSource(markdown);
+    const result = await markdownToHtml(markdown, {
+      hastPlugins: [authoredContentSafetyPlugin(source)],
+    });
 
-    expect(result.fragment).toContain(
-      'src="https://images.example.test/picture.png?q=1" alt="remote"',
-    );
-    expect(result.fragment).toContain('src="images/diagram%20one.svg#preview" alt="local"');
+    expect(result.html).toContain('src="https://images.example.test/picture.png?q=1" alt="remote"');
+    expect(result.html).toContain('src="images/diagram%20one.svg#preview" alt="local"');
   });
 
   test.each([

@@ -3,7 +3,10 @@ import { pathToFileURL } from "node:url";
 
 import { markdownToHtml, type Data, type Frontmatter, type HastPluginInput } from "satteri";
 
+import { staticExpressiveCodePlugin } from "./plugins/expressive-code.ts";
 import { headingMetadataPlugin } from "./plugins/headings.ts";
+import { imageEmbeddingPlugin } from "./plugins/images.ts";
+import { mermaidDiagramPlugin } from "./plugins/mermaid.ts";
 import { authoredContentSafetyPlugin } from "./plugins/safety.ts";
 import type { MarkdownSource } from "./source.ts";
 
@@ -26,7 +29,10 @@ function pluginAssembly(source: MarkdownSource): HastPluginInput[] {
   return [
     // Authored transforms must stay before plugins that add trusted generated markup.
     authoredContentSafetyPlugin(source),
+    imageEmbeddingPlugin(source),
     headingMetadataPlugin(),
+    mermaidDiagramPlugin(source),
+    staticExpressiveCodePlugin(source),
   ];
 }
 
