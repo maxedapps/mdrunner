@@ -55,6 +55,7 @@ export function staticExpressiveCodePlugin(
 ): HastPluginInput {
   const upstream = expressiveCode({
     themes: ["github-light", "github-dark"],
+    frames: { showCopyToClipboardButton: false },
     logger: QUIET_LOGGER,
     customCreateRenderer: async (options) => {
       const renderer = await rendererFactory(options);

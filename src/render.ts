@@ -43,16 +43,6 @@ function copyFrontmatter(frontmatter: Frontmatter | null): Readonly<Frontmatter>
     : Object.freeze({ kind: frontmatter.kind, value: frontmatter.value });
 }
 
-function removeGeneratedRuntimeControls(fragment: string): string {
-  // Expressive Code emits copy-button markup even when its runtime module is
-  // disabled. Remove that pinned, generated-only control so the static page has
-  // no inert toolbar or active button surface.
-  return fragment.replace(
-    /<div class="copy"><div aria-live="polite"><\/div><button\b[^>]*><div><\/div><\/button><\/div>/gu,
-    "",
-  );
-}
-
 /** Compile one source with the real Sätteri pipeline and per-document plugin factories. */
 export async function renderMarkdown(source: MarkdownSource): Promise<RenderedMarkdown> {
   const data: Data = {};
@@ -69,7 +59,7 @@ export async function renderMarkdown(source: MarkdownSource): Promise<RenderedMa
 
   const title = typeof result.data.title === "string" ? result.data.title : fallbackTitle(source);
   return Object.freeze({
-    fragment: removeGeneratedRuntimeControls(result.html),
+    fragment: result.html,
     title,
     frontmatter: copyFrontmatter(result.frontmatter),
     data: Object.freeze({ ...result.data }),

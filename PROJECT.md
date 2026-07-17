@@ -2,7 +2,7 @@
 
 ## Overview
 
-`mdrunner` is a small standalone CLI that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
+`mdrunner` is a small CLI, intended for standalone distribution, that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its source entry currently runs with Bun and the installed pinned dependencies; standalone packaging is Phase 3 work. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
 
 ```bash
 mdrunner ./README.md
@@ -92,7 +92,7 @@ A generated document must:
 - Require no JavaScript for Markdown, diagrams, highlighting, or theme selection.
 - Use inline CSS and `prefers-color-scheme` for automatic light/dark rendering.
 - Embed local Markdown images as data URIs.
-- Keep authored remote links and remote image URLs as remote URLs; mdrunner does not fetch arbitrary remote content.
+- Keep authored remote links and remote image URLs as remote URLs; mdrunner does not fetch arbitrary remote content during generation. A browser may request an authored remote image after opening the result.
 - Be responsive and printable.
 - Remain readable when an optional enhancement fails.
 
@@ -165,7 +165,7 @@ Supported initial diagram families:
 - Entity relationship
 - XY charts
 
-There is no engine-selection flag and no silent fallback to a different renderer. Invalid or unsupported Mermaid syntax fails generation with a concise diagnostic identifying the source block. The browser is not opened with a knowingly incomplete document.
+There is no engine-selection flag and no silent fallback to a different renderer. Unsupported headers, empty diagrams, known dangling relation/message cases, and invalid numeric XY series fail generation with a concise source-positioned diagnostic. `beautiful-mermaid` implements a Mermaid-like subset and some family parsers tolerate or ignore statements outside that subset, so this is not full official-Mermaid grammar validation. The browser is not opened after a detected diagram failure.
 
 Official Mermaid through `Bun.WebView` is deliberately deferred. It can provide broader Mermaid compatibility without a server, but adds generation-time browser requirements and implementation complexity. It should only replace the initial engine if real documents demonstrate that the missing diagram families matter.
 
@@ -189,7 +189,7 @@ The initial product does not include a table of contents, navigation sidebar, to
 - Relative local image paths are resolved against the Markdown file's directory for file input and the current working directory for stdin input.
 - Local images are read during generation and embedded as typed base64 data URIs.
 - Missing local images produce a source-aware generation error.
-- Path resolution is canonicalized and tested for traversal and symlink edge cases.
+- Path resolution is canonicalized and tested for traversal and symlink edge cases. The implementation opens the canonical target without following a final symlink and compares file metadata before and after reading; ordinary local-filesystem TOCTOU risk cannot be eliminated completely.
 - Remote images remain remote and are never fetched implicitly.
 - Product CSS is compiled into the executable and inlined into each generated document.
 
@@ -218,14 +218,12 @@ CLI arguments and stdin state
   → select file input or non-interactive stdin
   → canonicalize the source path or capture stdin context
   → read UTF-8 Markdown
-  → Sätteri parse to MDAST
-  → source-level safety and document transforms
-  → convert to HAST
-  → sanitize links, images, and authored raw HTML
-  → render Mermaid fences to trusted inline SVG
-  → render remaining code fences with Expressive Code/Shiki
-  → generate heading IDs and document metadata
-  → embed local image assets
+  → Sätteri parse to MDAST and convert to HAST
+  → escape authored raw HTML and normalize authored links/images
+  → validate and embed contained local image assets
+  → generate heading IDs and capture document metadata
+  → render Mermaid fences to validated trusted inline SVG
+  → render remaining code fences with static Expressive Code/Shiki output
   → render HTML fragment
   → place fragment in the inline-styled HTML shell
   → validate final-document invariants
@@ -250,7 +248,7 @@ Bun is used for:
 - Test runner and assertions
 - Bundling and standalone executable compilation
 
-Release binaries are built with `bun build --compile` and include the Bun runtime. End users do not need Bun or Node installed.
+Source development and validation use the pinned Bun runtime. Phase 3 will add and native-smoke-test `bun build --compile` release binaries; until that gate exists, end-user runtime independence is not yet verified.
 
 ### Sätteri instead of `Bun.markdown`
 
@@ -264,13 +262,7 @@ Sätteri is pre-1.0, so its exact version is pinned. Upgrades require a changelo
 
 Sätteri uses a platform-specific N-API addon. Bun's compiler does not automatically retain Sätteri's dynamically selected binding in the tested setup.
 
-Each release target therefore has a small build bootstrap that:
-
-1. Embeds the matching `.node` addon with Bun's file loader.
-2. Sets `NAPI_RS_NATIVE_LIBRARY_PATH` to the embedded path.
-3. Dynamically imports Sätteri after the path is configured.
-
-This behavior must be smoke-tested from the compiled executable on every supported release platform. It is an accepted trade-off for the AST pipeline, not an implementation detail to leave untested.
+Each release target therefore requires a small build bootstrap that embeds the matching `.node` addon with Bun's file loader, sets `NAPI_RS_NATIVE_LIBRARY_PATH`, and only then dynamically imports Sätteri. That bootstrap and native compiled smoke coverage remain Phase 3 work. No platform is a verified standalone release target until its compiled executable passes that gate.
 
 ### Expressive Code and Shiki
 
@@ -280,7 +272,7 @@ Used for generation-time syntax highlighting and code presentation. Runtime Java
 
 Used for generation-time Mermaid-like SVG rendering. It is intentionally chosen over official Mermaid CLI because it requires no Puppeteer, Chromium download, DOM shim, server, or runtime JavaScript.
 
-Its documented diagram coverage is an explicit product boundary.
+Its six implemented diagram families and parser tolerance are explicit product boundaries. mdrunner adds minimum-content and known malformed-statement gates, strips generated Google Fonts imports, and validates generated SVG, but does not claim compatibility with the complete official Mermaid grammar.
 
 ### Browser opener
 

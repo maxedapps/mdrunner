@@ -73,6 +73,8 @@ return answer;
     expect(html).toContain('data-language="language-that-does-not-exist"');
     expect(html).toContain("alpha &lt; beta &amp;&amp; gamma &gt; delta");
     expect(html).toContain('class="ec-line"');
+    expect(html).not.toContain('<div class="copy">');
+    expect(html).not.toMatch(/<button\b/iu);
     expect(warn).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
   });
