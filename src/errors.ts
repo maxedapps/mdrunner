@@ -8,6 +8,10 @@ export const errorCodes = {
   stdinUnreadable: "SOURCE_STDIN_UNREADABLE",
   invalidUtf8: "SOURCE_INVALID_UTF8",
   emptyStdin: "SOURCE_EMPTY_STDIN",
+  outputWriteFailed: "OUTPUT_WRITE_FAILED",
+  browserUnsupportedPlatform: "BROWSER_UNSUPPORTED_PLATFORM",
+  browserLaunchFailed: "BROWSER_LAUNCH_FAILED",
+  browserNonZeroExit: "BROWSER_NON_ZERO_EXIT",
   unexpected: "UNEXPECTED_ERROR",
 } as const;
 
