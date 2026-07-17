@@ -6,9 +6,13 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
-    "lint": "oxlint --no-error-on-unmatched-pattern .",
-    "format": "oxfmt --write .",
-    "format:check": "oxfmt --check ."
+    "test:unit": "bun test tests/unit",
+    "test:coverage": "bun test --coverage tests/unit",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src tests",
+    "format": "oxfmt --write . '!**/.plans/**' '!**/.subagents/**'",
+    "format:check": "oxfmt --check . '!**/.plans/**' '!**/.subagents/**'",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test:unit"
   },
   "dependencies": {
     "beautiful-mermaid": "1.1.3",

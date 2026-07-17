@@ -294,9 +294,10 @@ Commands are spawned with argument arrays rather than interpolated shell command
 
 ### Development tooling
 
-- Oxlint provides TypeScript-aware linting with correctness rules enabled.
+- Oxlint provides AST-based correctness linting for TypeScript source; it is not the type-aware gate.
+- TypeScript (`tsc --noEmit`) provides the type-aware gate.
 - Oxfmt provides deterministic project formatting.
-- Both tools are pinned exactly and run through package scripts.
+- All three tools are pinned exactly and run through package scripts.
 - Bun's built-in test runner remains the only test framework.
 
 ## Testing strategy
