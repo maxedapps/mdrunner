@@ -10,9 +10,9 @@
 
 | ID | Plan reference and requirement | Dependencies | Status | Acceptance check | Evidence / notes |
 |---|---|---|---|---|---|
-| T1.1 | Phase 1: Rust 2024/Cargo/MSRV project, lean CLI, strict file/stdin source acquisition and help/errors | — | Pending | `cargo test source`; fmt; clippy | — |
-| T1.2 | Phase 1: one-pass Comrak GFM/frontmatter render, title/headings/links, inert HTML, complete static shell/CSP/CSS | T1.1 | Pending | `cargo test render`; semantic shell assertions | — |
-| T1.3 | Phase 1: deterministic portable cache path, atomic persist, file URL/browser boundary, print/open ordering | T1.1–T1.2 | Pending | `cargo test output`; complete Rust and Bun phase gate | — |
+| T1.1 | Phase 1: Rust 2024/Cargo/MSRV project, lean CLI, strict file/stdin source acquisition and help/errors | — | In progress | `cargo test source`; fmt; clippy | Assigned to isolated Phase 1 writer after read-only scout `run-mrozldvb-70ad0ffd45`. |
+| T1.2 | Phase 1: one-pass Comrak GFM/frontmatter render, title/headings/links, inert HTML, complete static shell/CSP/CSS | T1.1 | In progress | `cargo test render`; semantic shell assertions | Same sequential isolated writer because source/render contracts are tightly coupled. |
+| T1.3 | Phase 1: deterministic portable cache path, atomic persist, file URL/browser boundary, print/open ordering | T1.1–T1.2 | In progress | `cargo test output`; complete Rust and Bun phase gate | Same sequential isolated writer; parent will inspect and rerun all gates before integration. |
 | T2.1 | Phase 2: curated Lumis highlighting and bounded title/line metadata with trusted static generated HTML | Phase 1 | Pending | focused code tests; clippy | — |
 | T2.2a | Phase 2: native strict Mermaid SVG with source-aware failures and no SVG validation | T2.1 | Pending | six-family and malformed Mermaid tests | — |
 | T2.2b | Phase 2: contained local image embedding/data URIs and safe remote passthrough | T2.1 | Pending | focused asset/path tests for all formats and bases | — |
@@ -27,7 +27,7 @@
 
 | Batch / rows | Owner and delegation rationale | Scope / dependencies / join | Ownership / isolation / overlap | Acceptance and review checkpoint | Parent verification / terminal evidence / cleanup |
 |---|---|---|---|---|---|
-| B01 / T1.1–T1.3 | Delegation to be considered after repository inventory | Phase 1 additive Rust foundation; sequential task dependencies | Tracker remains parent-owned | Phase 1 checks and fresh review | Pending |
+| B01 / T1.1–T1.3 | Isolated `worker` delegation; bounded additive Rust foundation benefits from focused implementation while parent retains tracker/integration | Phase 1 CLI/source → render → output/browser, joined only after complete handoff | Worker owns additive `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, and Rust `src/*.rs`; isolated worktree; existing TS/CSS retained; parent does not mutate lane | Focused tests, fmt, clippy, full Cargo and Bun phase gates; M01 fresh review | Scout `run-mrozldvb-70ad0ffd45` done/stopped; writer pending launch |
 | B02 / T2.1–T2.3 | Delegation to be considered after B01 verification | Phase 2 renderer parity on stable foundation | Tracker remains parent-owned | Phase 2 checks and fresh review | Pending |
 | B03 / T3.1–T3.2b | Parent owns manual smoke/cutover integration due strict release-evidence dependency; bounded sub-lanes considered after smoke | Validate release before destructive legacy removal | Sequential; no legacy deletion before T3.1 | Release/manual gate and cutover review | Pending |
 | B04 / V1–V2 | Parent validation plus mandatory fresh read-only final reviewer | Full-plan reconciliation | Read-only reviewer; tracker parent-owned | Complete final gate | Pending |
