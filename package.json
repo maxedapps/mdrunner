@@ -1,0 +1,25 @@
+{
+  "name": "mdrunner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Render Markdown as polished, self-contained HTML and open it in the default browser.",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "lint": "oxlint --no-error-on-unmatched-pattern .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
+  },
+  "dependencies": {
+    "beautiful-mermaid": "1.1.3",
+    "satteri": "0.9.5",
+    "satteri-expressive-code": "0.1.18"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "oxfmt": "0.59.0",
+    "oxlint": "1.74.0",
+    "typescript": "7.0.2"
+  },
+  "packageManager": "bun@1.3.14"
+}

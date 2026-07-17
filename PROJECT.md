@@ -2,10 +2,11 @@
 
 ## Overview
 
-`mdrunner` is a small standalone CLI that turns one Markdown file into one finished HTML file and opens it in the user's default browser.
+`mdrunner` is a small standalone CLI that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
 
 ```bash
 mdrunner ./README.md
+cat README.md | mdrunner
 ```
 
 The command performs all meaningful rendering before the browser opens:
@@ -23,7 +24,7 @@ There is no HTTP server, localhost listener, background daemon, client-side Mark
 
 ## Product principles
 
-1. **One obvious command** — accept a Markdown path, generate the page, open it.
+1. **One obvious command** — accept a Markdown file or piped Markdown, generate the page, open it.
 2. **Generation-time rendering** — the browser receives finished HTML, not work to perform.
 3. **Self-contained output** — mdrunner-owned CSS, diagram SVG, highlighting styles, and local images are inline.
 4. **Beautiful defaults** — typography, spacing, code, tables, diagrams, dark mode, and print output work without configuration.
@@ -37,6 +38,7 @@ There is no HTTP server, localhost listener, background daemon, client-side Mark
 
 ```bash
 mdrunner <file.md>
+command-producing-markdown | mdrunner
 ```
 
 The CLI has:
@@ -49,20 +51,27 @@ The CLI has:
 
 ### Input
 
-- Exactly one readable `.md` file path is required.
-- Relative paths are resolved from the current working directory.
-- Symlinks are resolved before reading.
-- Missing files, directories, unsupported extensions, and unreadable files produce concise errors and a non-zero exit code.
+mdrunner chooses one input source without an additional flag:
+
+- With one positional argument, it reads that `.md` file.
+- With no positional argument and non-interactive standard input, it reads UTF-8 Markdown from stdin until EOF.
+- With no positional argument and an interactive terminal, it prints usage and exits instead of waiting indefinitely.
+- More than one positional argument is rejected.
+- A file argument takes precedence if stdin is also redirected.
+- Relative file paths are resolved from the current working directory, and symlinks are resolved before reading.
+- Relative local assets in file input are resolved from the Markdown file's directory.
+- Relative local assets in stdin input are resolved from the current working directory.
+- Missing files, directories, unsupported file extensions, unreadable files, invalid UTF-8 input, and empty stdin produce concise errors and a non-zero exit code.
 
 ### Output
 
 The generated file is written atomically to a deterministic cache location under the operating system's temporary directory:
 
 ```text
-<tmp>/mdrunner/<hash-of-canonical-source-path>/<source-name>.html
+<tmp>/mdrunner/<hash-of-source-identity>/<source-name>.html
 ```
 
-The same source path reuses the same output location. A successful run replaces the previous generated file. The file is not deleted when the CLI exits because the browser may still be loading or reloading it.
+For file input, the source identity is the canonical source path and the output uses its filename. For stdin, the identity includes the current working directory and Markdown content, and the output is named `stdin.html`. Repeated input reuses the same output location. A successful run replaces the previous generated file. The file is not deleted when the CLI exits because the browser may still be loading or reloading it.
 
 On success, mdrunner:
 
@@ -117,7 +126,8 @@ Heading IDs are generated deterministically and deduplicated so fragment links w
 The document title is selected in this order:
 
 1. First level-one heading
-2. Source filename without extension
+2. Source filename without extension for file input
+3. `Markdown document` for stdin input without a level-one heading
 
 Frontmatter remains available to the pipeline but is not treated as a configuration system in the initial version.
 
@@ -176,7 +186,7 @@ The initial product does not include a table of contents, navigation sidebar, to
 
 ### Images and assets
 
-- Relative local image paths are resolved against the Markdown file's directory.
+- Relative local image paths are resolved against the Markdown file's directory for file input and the current working directory for stdin input.
 - Local images are read during generation and embedded as typed base64 data URIs.
 - Missing local images produce a source-aware generation error.
 - Path resolution is canonicalized and tested for traversal and symlink edge cases.
@@ -195,7 +205,7 @@ Initial policy:
 - Mermaid source is rendered by the trusted static renderer, whose SVG text output is escaped.
 - Generated SVG must not contain scripts, event-handler attributes, external resource loads, or unsafe links.
 - No `eval`, dynamic remote modules, CDN scripts, or runtime Markdown rendering are used.
-- File reads are limited to the requested Markdown file and explicitly referenced local assets.
+- File reads are limited to the requested Markdown file, when present, and explicitly referenced local assets.
 
 Security transforms run before trusted code-highlighting and diagram-generation plugins so generated markup is not accidentally stripped while authored unsafe markup is not accidentally trusted.
 
@@ -204,8 +214,9 @@ Every security defect receives a permanent regression test.
 ## Processing pipeline
 
 ```text
-CLI argument
-  → canonicalize and validate source path
+CLI arguments and stdin state
+  → select file input or non-interactive stdin
+  → canonicalize the source path or capture stdin context
   → read UTF-8 Markdown
   → Sätteri parse to MDAST
   → source-level safety and document transforms
@@ -281,6 +292,13 @@ A small internal adapter opens the generated file with the platform default:
 
 Commands are spawned with argument arrays rather than interpolated shell commands. The adapter is dependency-injected so tests never open a real browser.
 
+### Development tooling
+
+- Oxlint provides TypeScript-aware linting with correctness rules enabled.
+- Oxfmt provides deterministic project formatting.
+- Both tools are pinned exactly and run through package scripts.
+- Bun's built-in test runner remains the only test framework.
+
 ## Testing strategy
 
 All automated tests use `bun test`. Tests must be fast enough for normal local development while exercising the real parser and renderers wherever practical.
@@ -300,8 +318,10 @@ All automated tests use `bun test`. Tests must be fast enough for normal local d
 
 Focused tests cover logic with meaningful branching:
 
-- CLI argument validation
+- CLI argument and stdin-state validation
+- File and stdin source selection
 - Canonical input and output path calculation
+- Deterministic stdin identity calculation
 - Title selection
 - Heading slug generation and collision handling
 - URL protocol policy
@@ -329,7 +349,8 @@ Fixture-based tests run the actual generation pipeline and verify:
 - Local PNG, JPEG, GIF, WebP, and SVG embedding
 - Paths containing spaces and Unicode
 - Missing asset failures
-- Relative nested asset paths
+- Relative nested asset paths for file and stdin input
+- Equivalent rendering from file and stdin content
 - Light/dark CSS presence
 - Print CSS presence
 - Deterministic output for identical input
@@ -370,6 +391,10 @@ Only compact, stable portions of complete output are snapshot-tested. Volatile S
 Tests spawn the CLI in isolated temporary directories and assert:
 
 - Successful generation from a relative and absolute path
+- Successful generation from piped stdin
+- Usage failure for interactive stdin without a file
+- File precedence when stdin is also redirected
+- Stdin local-asset resolution against the current working directory
 - Printed output path
 - Browser-opener invocation with the generated file URL
 - Process exit codes
@@ -452,10 +477,11 @@ Potential features such as KaTeX rendering, official Mermaid through `Bun.WebVie
 
 ## Definition of done for the initial product
 
-The initial product is complete when a user can run:
+The initial product is complete when a user can run either:
 
 ```bash
 mdrunner ./README.md
+cat README.md | mdrunner
 ```
 
 and receive a beautiful, safe, self-contained HTML file that:
