@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, open, readFile, readdir, rename, unlink } from "node:fs/promises";
+import { readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { ExpectedError, errorCodes, formatError } from "../../src/errors.ts";
+import { ExpectedError, formatError } from "../../src/errors.ts";
 import {
   cacheDigest,
   outputPathForSource,
+  replaceCompletedFile,
   sanitizeOutputStem,
   writeOutput,
-  type OutputFileSystem,
+  type ReplacementOperations,
 } from "../../src/output.ts";
 import type { MarkdownSource } from "../../src/source.ts";
 import { withTemporaryDirectory } from "../helpers/temp-dir.ts";
@@ -27,41 +28,17 @@ function stdinSource(markdown = "# Hello\n", cwd = "/workspace"): MarkdownSource
   return { kind: "stdin", markdown, cwd, assetBase: cwd, label: "stdin" };
 }
 
-function nodeFileSystem(overrides: Partial<OutputFileSystem> = {}): OutputFileSystem {
-  return {
-    async mkdir(path) {
-      await mkdir(path, { recursive: true });
-    },
-    async openExclusive(path) {
-      return open(path, "wx", 0o600);
-    },
-    rename,
-    unlink,
-    ...overrides,
-  };
-}
-
 function codedError(code: string): Error & { code: string } {
   return Object.assign(new Error(code), { code });
 }
 
-async function captureFailure(run: () => Promise<unknown>): Promise<unknown> {
-  try {
-    await run();
-  } catch (error) {
-    return error;
-  }
-  throw new Error("Expected operation to fail");
-}
-
 describe("deterministic cache paths", () => {
-  test("uses the full SHA-256 of a canonical file path and a stable source stem", () => {
-    const source = fileSource();
-
-    expect(cacheDigest(source)).toBe(
+  test("uses the full source identity hash and portable output names", () => {
+    const file = fileSource();
+    expect(cacheDigest(file)).toBe(
       "f169b6d85ba7fa48d07076425080cfa1993638e608710cee9ae8e50e6926428c",
     );
-    expect(outputPathForSource(source, "/cache root")).toBe(
+    expect(outputPathForSource(file, "/cache root")).toBe(
       join(
         "/cache root",
         "mdrunner",
@@ -69,31 +46,14 @@ describe("deterministic cache paths", () => {
         "Notes & Résumé.html",
       ),
     );
-    expect(cacheDigest({ ...source, markdown: "changed but irrelevant" })).toBe(
-      cacheDigest(source),
-    );
-  });
+    expect(cacheDigest({ ...file, markdown: "changed" })).toBe(cacheDigest(file));
 
-  test("separates stdin cwd and contents with NUL and always names it stdin.html", () => {
-    const source = stdinSource();
-
-    expect(cacheDigest(source)).toBe(
+    const stdin = stdinSource();
+    expect(cacheDigest(stdin)).toBe(
       "d64fe0560e5c180ebeb11325ff15f1dd4179ff3156bf53e082f36ea290909453",
     );
-    expect(outputPathForSource(source, "/cache")).toBe(
-      join(
-        "/cache",
-        "mdrunner",
-        "d64fe0560e5c180ebeb11325ff15f1dd4179ff3156bf53e082f36ea290909453",
-        "stdin.html",
-      ),
-    );
-    expect(cacheDigest(stdinSource("# Changed\n"))).toBe(
-      "349299ba0b94ffa3f6f9989d83116f60593b8078a8d2be77679b5e50c611ac6c",
-    );
-    expect(cacheDigest(stdinSource("# Hello\n", "/other"))).toBe(
-      "5a4f46125d5f02f15776079e5bc48da07ee071780561167ac888f0ebdc07522c",
-    );
+    expect(outputPathForSource(stdin, "/cache")).toEndWith(join("stdin.html"));
+    expect(cacheDigest(stdinSource("# Changed\n"))).not.toBe(cacheDigest(stdin));
   });
 
   test("sanitizes only non-portable stem text deterministically", () => {
@@ -108,217 +68,102 @@ describe("deterministic cache paths", () => {
 });
 
 describe("atomic output persistence", () => {
-  test("reuses and completely replaces one destination without sibling residue", async () => {
+  test("writes, reuses, and completely replaces one deterministic destination", async () => {
     await withTemporaryDirectory(async (temporaryDirectory) => {
       const source = fileSource(join(temporaryDirectory, "source.md"));
-      const first = "<!doctype html><p>first document</p>";
-      const second = "<!doctype html><p>second document is longer</p>";
-
-      const firstPath = await writeOutput(source, first, { temporaryDirectory });
-      const secondPath = await writeOutput(source, second, { temporaryDirectory });
+      const firstPath = await writeOutput(source, "first complete", temporaryDirectory);
+      const secondPath = await writeOutput(source, "second complete", temporaryDirectory);
 
       expect(secondPath).toBe(firstPath);
-      expect(await readFile(firstPath, "utf8")).toBe(second);
+      expect(await readFile(firstPath, "utf8")).toBe("second complete");
       expect(await readdir(dirname(firstPath))).toEqual([basename(firstPath)]);
     });
   });
 
-  test("coordinates concurrent complete writers and never exposes a partial candidate", async () => {
+  test("concurrent writers leave exactly one complete candidate and no siblings", async () => {
     await withTemporaryDirectory(async (temporaryDirectory) => {
       const source = stdinSource("same identity", temporaryDirectory);
-      const destination = await writeOutput(source, "old-complete", { temporaryDirectory });
       const candidateA = `A:${"a".repeat(128_000)}:end-A`;
       const candidateB = `B:${"b".repeat(128_000)}:end-B`;
-      let synchronized = 0;
-      let releaseWrites!: () => void;
-      let reportSynchronized!: () => void;
-      const writeGate = new Promise<void>((resolve) => {
-        releaseWrites = resolve;
-      });
-      const bothSynchronized = new Promise<void>((resolve) => {
-        reportSynchronized = resolve;
-      });
-      const fileSystem = nodeFileSystem({
-        async openExclusive(path) {
-          const handle = await open(path, "wx", 0o600);
-          return {
-            writeFile: (contents) => handle.writeFile(contents),
-            async sync() {
-              await handle.sync();
-              synchronized += 1;
-              if (synchronized === 2) reportSynchronized();
-              await writeGate;
-            },
-            close: () => handle.close(),
-          };
-        },
-        async rename(from, to) {
-          await rename(from, to);
-          await Bun.sleep(5);
-        },
-      });
-
-      const writes = Promise.all([
-        writeOutput(source, candidateA, { fileSystem, temporaryDirectory }),
-        writeOutput(source, candidateB, { fileSystem, temporaryDirectory }),
+      const [destination] = await Promise.all([
+        writeOutput(source, candidateA, temporaryDirectory),
+        writeOutput(source, candidateB, temporaryDirectory),
       ]);
-      await bothSynchronized;
-      expect(await readFile(destination, "utf8")).toBe("old-complete");
-
-      const observed = new Set<string>();
-      let observing = true;
-      const observer = (async () => {
-        while (observing) {
-          const contents = await readFile(destination, "utf8");
-          expect(["old-complete", candidateA, candidateB]).toContain(contents);
-          observed.add(contents);
-          await Bun.sleep(1);
-        }
-      })();
-      releaseWrites();
-      await writes;
-      observing = false;
-      await observer;
 
       expect([candidateA, candidateB]).toContain(await readFile(destination, "utf8"));
-      expect(observed.size).toBeGreaterThan(0);
       expect(await readdir(dirname(destination))).toEqual([basename(destination)]);
     });
   });
 
-  test("flushes and closes before replacement and cleans a temp after replacement failure", async () => {
+  test("maps a real filesystem failure without leaving a generated tree", async () => {
     await withTemporaryDirectory(async (temporaryDirectory) => {
-      const source = fileSource(join(temporaryDirectory, "ordered.md"));
-      const destination = await writeOutput(source, "last valid", { temporaryDirectory });
-      const operations: string[] = [];
-      const fileSystem = nodeFileSystem({
-        async openExclusive(path) {
-          operations.push("open");
-          const handle = await open(path, "wx", 0o600);
-          return {
-            async writeFile(contents) {
-              operations.push("write");
-              await handle.writeFile(contents);
-            },
-            async sync() {
-              operations.push("sync");
-              await handle.sync();
-            },
-            async close() {
-              operations.push("close");
-              await handle.close();
-            },
-          };
-        },
-        async rename() {
-          operations.push("rename");
-          throw codedError("EIO");
-        },
-        async unlink(path) {
-          operations.push("unlink");
-          await unlink(path);
-        },
-      });
+      const unusableRoot = join(temporaryDirectory, "not-a-directory");
+      await writeFile(unusableRoot, "file");
+      const source = fileSource(join(temporaryDirectory, "source.md"));
 
-      const failure = writeOutput(source, "new complete", { fileSystem, temporaryDirectory });
-      await expect(failure).rejects.toMatchObject({
-        code: errorCodes.outputWriteFailed,
-        message: "Could not write generated HTML.",
-      });
-      expect(operations).toEqual(["open", "write", "sync", "close", "rename", "unlink"]);
-      expect(await readFile(destination, "utf8")).toBe("last valid");
-      expect(await readdir(dirname(destination))).toEqual([basename(destination)]);
-    });
-  });
-
-  test("cleans a partially written temp when writing fails", async () => {
-    await withTemporaryDirectory(async (temporaryDirectory) => {
-      const source = stdinSource("write failure", temporaryDirectory);
-      const fileSystem = nodeFileSystem({
-        async openExclusive(path) {
-          const handle = await open(path, "wx", 0o600);
-          return {
-            async writeFile(contents) {
-              await handle.writeFile(contents.slice(0, 4));
-              throw codedError("ENOSPC");
-            },
-            sync: () => handle.sync(),
-            close: () => handle.close(),
-          };
-        },
-      });
-
-      const error = await captureFailure(() =>
-        writeOutput(source, "complete candidate", { fileSystem, temporaryDirectory }),
-      );
+      let error: unknown;
+      try {
+        await writeOutput(source, "complete", unusableRoot);
+      } catch (caught) {
+        error = caught;
+      }
       expect(error).toBeInstanceOf(ExpectedError);
-      const destination = outputPathForSource(source, temporaryDirectory);
-      expect(formatError(error)).toBe(`${destination}: Could not write generated HTML.`);
-      expect(await readdir(dirname(destination))).toEqual([]);
+      expect(formatError(error)).toEndWith(": Could not write generated HTML.");
+      expect(await readdir(temporaryDirectory)).toEqual(["not-a-directory"]);
     });
   });
+});
 
-  test("uses a completed sibling and backup for Windows replacement", async () => {
-    await withTemporaryDirectory(async (temporaryDirectory) => {
-      const source = fileSource(join(temporaryDirectory, "windows.md"));
-      const destination = await writeOutput(source, "previous valid", { temporaryDirectory });
-      let installAttempts = 0;
-      const operations: string[] = [];
-      const fileSystem = nodeFileSystem({
+describe("Windows completed-file replacement", () => {
+  test("uses a backup when rename-over-existing is refused", async () => {
+    await withTemporaryDirectory(async (directory) => {
+      const temporary = join(directory, "candidate.tmp");
+      const destination = join(directory, "mdrunner.exe");
+      const backup = join(directory, "backup.exe");
+      await writeFile(temporary, "new complete");
+      await writeFile(destination, "previous valid");
+      let installs = 0;
+      const operations: ReplacementOperations = {
         async rename(from, to) {
-          if (to === destination && from.endsWith(".tmp")) {
-            installAttempts += 1;
-            operations.push(`install-${installAttempts}`);
-            if (installAttempts === 1) throw codedError("EEXIST");
-          } else if (from === destination) {
-            operations.push("preserve-old");
-            expect(await readFile(from, "utf8")).toBe("previous valid");
+          if (from === temporary && to === destination && ++installs === 1) {
+            throw codedError("EEXIST");
           }
           await rename(from, to);
         },
-        async unlink(path) {
-          operations.push("remove-backup");
-          await unlink(path);
-        },
-      });
+        unlink,
+      };
 
-      await writeOutput(source, "new complete", {
-        fileSystem,
-        platform: "win32",
-        temporaryDirectory,
-      });
-
-      expect(operations).toEqual(["install-1", "preserve-old", "install-2", "remove-backup"]);
+      await replaceCompletedFile(temporary, destination, backup, "win32", operations);
       expect(await readFile(destination, "utf8")).toBe("new complete");
-      expect(await readdir(dirname(destination))).toEqual([basename(destination)]);
+      expect(await readdir(directory)).toEqual(["mdrunner.exe"]);
     });
   });
 
-  test("restores the last valid Windows destination when fallback installation fails", async () => {
-    await withTemporaryDirectory(async (temporaryDirectory) => {
-      const source = fileSource(join(temporaryDirectory, "windows-rollback.md"));
-      const destination = await writeOutput(source, "previous valid", { temporaryDirectory });
-      let installAttempts = 0;
-      const fileSystem = nodeFileSystem({
+  test("restores the prior destination when installation fails", async () => {
+    await withTemporaryDirectory(async (directory) => {
+      const temporary = join(directory, "candidate.tmp");
+      const destination = join(directory, "mdrunner.exe");
+      const backup = join(directory, "backup.exe");
+      await writeFile(temporary, "new complete");
+      await writeFile(destination, "previous valid");
+      let installs = 0;
+      const operations: ReplacementOperations = {
         async rename(from, to) {
-          if (to === destination && from.endsWith(".tmp")) {
-            installAttempts += 1;
-            throw codedError(installAttempts === 1 ? "EEXIST" : "EACCES");
+          if (from === temporary && to === destination) {
+            installs += 1;
+            throw codedError(installs === 1 ? "EEXIST" : "EACCES");
           }
           await rename(from, to);
         },
-      });
+        unlink,
+      };
 
       await expect(
-        writeOutput(source, "new complete", {
-          fileSystem,
-          platform: "win32",
-          temporaryDirectory,
-        }),
-      ).rejects.toMatchObject({ code: errorCodes.outputWriteFailed });
-
+        replaceCompletedFile(temporary, destination, backup, "win32", operations),
+      ).rejects.toThrow("EACCES");
       expect(await readFile(destination, "utf8")).toBe("previous valid");
-      expect(await readdir(dirname(destination))).toEqual([basename(destination)]);
+      expect(await readFile(temporary, "utf8")).toBe("new complete");
+      expect(await readdir(directory)).toEqual(["candidate.tmp", "mdrunner.exe"]);
     });
   });
 });

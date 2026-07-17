@@ -3,9 +3,10 @@ import { access, chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { USAGE_TEXT } from "../../src/main.ts";
 import { withTemporaryDirectory } from "../helpers/temp-dir.ts";
 
+const USAGE_TEXT = `Usage: mdrunner <file.md>
+       command-producing-markdown | mdrunner`;
 const cliPath = join(import.meta.dir, "../../src/cli.ts");
 const encoder = new TextEncoder();
 const openerName =
@@ -41,7 +42,7 @@ async function makeOpenerShim(root: string): Promise<{
 async function runCli(options: {
   readonly cwd: string;
   readonly args?: readonly string[];
-  readonly stdin?: string;
+  readonly stdin?: string | Uint8Array;
   readonly shimDirectory?: string;
   readonly capture?: string;
   readonly openerExit?: number;
@@ -61,7 +62,12 @@ async function runCli(options: {
         ? {}
         : { MDRUNNER_OPEN_EXIT: String(options.openerExit) }),
     },
-    stdin: options.stdin === undefined ? "ignore" : encoder.encode(options.stdin),
+    stdin:
+      options.stdin === undefined
+        ? "ignore"
+        : typeof options.stdin === "string"
+          ? encoder.encode(options.stdin)
+          : options.stdin,
     stdout: "pipe",
     stderr: "pipe",
     timeout: 20_000,
@@ -131,29 +137,36 @@ describe("CLI subprocess contract", () => {
   );
 
   test.skipIf(!supportsPosixShim)(
-    "renders piped stdin, prints one path, and exits",
+    "renders piped stdin with ignored YAML and TOML frontmatter, prints one path, and exits",
     async () => {
       await withTemporaryDirectory(async (root) => {
         const { directory, capture } = await makeOpenerShim(root);
-        const result = await runCli({
-          cwd: root,
-          stdin: "# Piped success\n\n- [x] static\n",
-          shimDirectory: directory,
-          capture,
-        });
+        for (const [frontmatter, hidden] of [
+          ["---\nauthor: Ada\n---", "author: Ada"],
+          ['+++\nauthor = "Ada"\n+++', 'author = "Ada"'],
+        ]) {
+          const result = await runCli({
+            cwd: root,
+            stdin: `${frontmatter}\n# Piped success\n\n- [x] static\n`,
+            shimDirectory: directory,
+            capture,
+          });
 
-        try {
-          expect(result.exitCode).toBe(0);
-          expect(result.stderr).toBe("");
-          expect(result.stdout.split("\n").filter(Boolean)).toHaveLength(1);
-          const outputPath = result.stdout.trim();
-          expect(outputPath).toEndWith("stdin.html");
-          expect(await readFile(outputPath, "utf8")).toContain("<title>Piped success</title>");
-          expect(await readFile(capture, "utf8")).toBe(
-            `${pathToFileURL(outputPath).href}\ncomplete\n`,
-          );
-        } finally {
-          await cleanupGeneratedOutput(result.stdout);
+          try {
+            expect(result.exitCode).toBe(0);
+            expect(result.stderr).toBe("");
+            expect(result.stdout.split("\n").filter(Boolean)).toHaveLength(1);
+            const outputPath = result.stdout.trim();
+            expect(outputPath).toEndWith("stdin.html");
+            const html = await readFile(outputPath, "utf8");
+            expect(html).toContain("<title>Piped success</title>");
+            expect(html).not.toContain(hidden);
+            expect(await readFile(capture, "utf8")).toBe(
+              `${pathToFileURL(outputPath).href}\ncomplete\n`,
+            );
+          } finally {
+            await cleanupGeneratedOutput(result.stdout);
+          }
         }
       });
     },
@@ -236,6 +249,30 @@ describe("CLI subprocess contract", () => {
         expect(missingFailure.exitCode).toBe(1);
         expect(missingFailure.stdout).toBe("");
         expect(missingFailure.stderr).toEndWith("Markdown file was not found.\n");
+
+        const invalidStdin = await runCli({
+          cwd: root,
+          stdin: new Uint8Array([0x66, 0x80, 0x6f]),
+          shimDirectory: directory,
+          capture,
+        });
+        expect(invalidStdin).toMatchObject({
+          exitCode: 1,
+          stdout: "",
+          stderr: "stdin: Input is not valid UTF-8.\n",
+        });
+
+        const emptyStdin = await runCli({
+          cwd: root,
+          stdin: " \n\t",
+          shimDirectory: directory,
+          capture,
+        });
+        expect(emptyStdin).toMatchObject({
+          exitCode: 1,
+          stdout: "",
+          stderr: "stdin: Piped Markdown is empty.\n",
+        });
         await captureDoesNotExist(capture);
       });
     },

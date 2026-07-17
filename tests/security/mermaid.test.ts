@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { markdownToHtml } from "satteri";
 
-import { ExpectedError, errorCodes } from "../../src/errors.ts";
+import { ExpectedError } from "../../src/errors.ts";
 import { mermaidDiagramPlugin, validateGeneratedMermaidSvg } from "../../src/plugins/mermaid.ts";
 import type { MarkdownSource } from "../../src/source.ts";
 
@@ -60,7 +60,7 @@ graph TD
       });
     } catch (error) {
       expect(error).toBeInstanceOf(ExpectedError);
-      expect((error as ExpectedError).code).toBe(errorCodes.mermaidUnsafe);
+      expect((error as ExpectedError).message).toContain("external CSS URLs");
       expect((error as ExpectedError).source?.line).toBe(1);
       return;
     }
@@ -102,7 +102,7 @@ graph TD
   ])("rejects generated SVG containing %s", async (_description, svg) => {
     const error = await injectedFailure(svg);
 
-    expect(error.code).toBe(errorCodes.mermaidUnsafe);
+    expect(error.message).toContain("Generated Mermaid");
     expect(error.source).toEqual({ label: "/workspace/security.md", line: 1, column: 1 });
   });
 

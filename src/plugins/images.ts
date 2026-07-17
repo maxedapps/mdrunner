@@ -1,38 +1,18 @@
 import { defineHastPlugin, type HastPluginInput } from "satteri";
 
 import { embedLocalImageAsset, type ImageAssetContext } from "../assets.ts";
-import { ExpectedError, errorCodes } from "../errors.ts";
+import { ExpectedError } from "../errors.ts";
 import type { MarkdownSource } from "../source.ts";
+import { sourceLocation, type PositionedNode } from "./source-location.ts";
 
 const SCHEME = /^([a-z][a-z\d+.-]*):/iu;
 
-function sourceContext(
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-): ImageAssetContext {
-  const position = node.position as
-    | { readonly start?: { readonly line?: number; readonly column?: number } }
-    | undefined;
-  const line = position?.start?.line;
-  const column = position?.start?.column;
-  return {
-    assetBase: source.assetBase,
-    label: source.label,
-    ...(line === undefined ? {} : { line }),
-    ...(column === undefined ? {} : { column }),
-  };
+function sourceContext(source: MarkdownSource, node: PositionedNode): ImageAssetContext {
+  return { assetBase: source.assetBase, ...sourceLocation(source, node) };
 }
 
-function unsafeImage(
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-  reason: string,
-): never {
-  throw new ExpectedError(
-    errorCodes.unsafeImageUrl,
-    `Unsafe image URL: ${reason}.`,
-    sourceContext(source, node),
-  );
+function unsafeImage(source: MarkdownSource, node: PositionedNode, reason: string): never {
+  throw new ExpectedError(`Unsafe image URL: ${reason}.`, sourceLocation(source, node));
 }
 
 function stripControls(value: string): string {
@@ -44,11 +24,7 @@ function stripControls(value: string): string {
   return result;
 }
 
-function decodeForPolicy(
-  value: string,
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-): string {
+function decodeForPolicy(value: string, source: MarkdownSource, node: PositionedNode): string {
   let decoded = value;
   try {
     for (let index = 0; index < 4; index++) {
@@ -62,11 +38,7 @@ function decodeForPolicy(
   return stripControls(decoded.trim());
 }
 
-function isAllowedRemote(
-  value: string,
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-): boolean {
+function isAllowedRemote(value: string, source: MarkdownSource, node: PositionedNode): boolean {
   const rawScheme = SCHEME.exec(value)?.[1]?.toLowerCase();
   const policyValue = decodeForPolicy(value, source, node);
   const decodedScheme = SCHEME.exec(policyValue)?.[1]?.toLowerCase();
@@ -94,10 +66,7 @@ function isAllowedRemote(
   return true;
 }
 
-/**
- * Run after authored-content safety. Remote HTTP(S) image references are left
- * untouched; contained local candidates are replaced with validated data URIs.
- */
+/** Preserve HTTP(S) images and embed validated, contained local image assets. */
 export function imageEmbeddingPlugin(source: MarkdownSource): HastPluginInput {
   return () =>
     defineHastPlugin({

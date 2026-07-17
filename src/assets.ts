@@ -4,7 +4,7 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 
-import { ExpectedError, errorCodes, type ErrorSource } from "./errors.ts";
+import { ExpectedError, type ErrorSource } from "./errors.ts";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 const SAFE_FRAGMENT_ID = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
@@ -50,7 +50,7 @@ export interface EmbeddedImageAsset {
 }
 
 function assetFailure(context: ImageAssetContext, message: string): never {
-  throw new ExpectedError(errorCodes.imageAssetFailed, message, context);
+  throw new ExpectedError(message, context);
 }
 
 function hasNodeCode(error: unknown, ...codes: string[]): boolean {
@@ -63,7 +63,7 @@ function hasNodeCode(error: unknown, ...codes: string[]): boolean {
 }
 
 function unsafeSvg(context: ImageAssetContext, message: string): never {
-  throw new ExpectedError(errorCodes.unsafeSvg, message, context);
+  throw new ExpectedError(message, context);
 }
 
 function isContained(base: string, target: string): boolean {

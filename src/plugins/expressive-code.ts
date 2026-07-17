@@ -5,8 +5,9 @@ import expressiveCode, {
 } from "satteri-expressive-code";
 import { defineHastPlugin, type HastPluginInput } from "satteri";
 
-import { ExpectedError, errorCodes } from "../errors.ts";
+import { ExpectedError } from "../errors.ts";
 import type { MarkdownSource } from "../source.ts";
+import { sourceLocation, type PositionedNode } from "./source-location.ts";
 
 const QUIET_LOGGER = Object.freeze({
   label: "mdrunner-code",
@@ -20,29 +21,10 @@ type RendererFactory = (
   options?: SatteriExpressiveCodeOptions,
 ) => Promise<SatteriExpressiveCodeRenderer>;
 
-type PositionedNode = { readonly position?: unknown };
-
-function sourceLocation(source: MarkdownSource, node: PositionedNode) {
-  const position = node.position as
-    | { readonly start?: { readonly line?: number; readonly column?: number } }
-    | undefined;
-  const line = position?.start?.line;
-  const column = position?.start?.column;
-  return {
-    label: source.label,
-    ...(line === undefined ? {} : { line }),
-    ...(column === undefined ? {} : { column }),
-  };
-}
-
 function highlightingFailure(source: MarkdownSource, node: PositionedNode, error: unknown): never {
   if (error instanceof ExpectedError) throw error;
   const detail = error instanceof Error && error.message.trim() !== "" ? ` ${error.message}` : "";
-  throw new ExpectedError(
-    errorCodes.codeHighlightFailed,
-    `Code highlighting failed.${detail}`,
-    sourceLocation(source, node),
-  );
+  throw new ExpectedError(`Code highlighting failed.${detail}`, sourceLocation(source, node));
 }
 
 /**
@@ -67,11 +49,9 @@ export function staticExpressiveCodePlugin(
     const definition = upstream();
     const element = definition.element;
     if (element === undefined || Array.isArray(element)) {
-      throw new ExpectedError(
-        errorCodes.codeHighlightFailed,
-        "Code highlighting plugin initialization failed.",
-        { label: source.label },
-      );
+      throw new ExpectedError("Code highlighting plugin initialization failed.", {
+        label: source.label,
+      });
     }
 
     return defineHastPlugin({

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { validateAuthoredSvg, type ImageAssetContext } from "../../src/assets.ts";
-import { ExpectedError, errorCodes } from "../../src/errors.ts";
+import { ExpectedError } from "../../src/errors.ts";
 
 const context: ImageAssetContext = {
   assetBase: "/workspace/docs",
@@ -18,7 +18,6 @@ function svgFailure(svg: string): ExpectedError {
   } catch (error) {
     expect(error).toBeInstanceOf(ExpectedError);
     const expected = error as ExpectedError;
-    expect(expected.code).toBe(errorCodes.unsafeSvg);
     expect(expected.source).toEqual({ label: context.label, line: 7, column: 1 });
     return expected;
   }
@@ -122,7 +121,7 @@ describe("authored SVG structural validation", () => {
         validateAuthoredSvg(new Uint8Array([0xff, 0xfe]), context);
       } catch (error) {
         expect(error).toBeInstanceOf(ExpectedError);
-        expect((error as ExpectedError).code).toBe(errorCodes.unsafeSvg);
+        expect((error as ExpectedError).message).toBe("SVG is not valid UTF-8.");
         return;
       }
       throw new Error("Expected invalid UTF-8 to fail");

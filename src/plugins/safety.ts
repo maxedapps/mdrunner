@@ -1,35 +1,17 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { ExpectedError, errorCodes } from "../errors.ts";
-import type { MarkdownSource } from "../source.ts";
 import { defineHastPlugin, type HastPluginInput } from "satteri";
+
+import { ExpectedError } from "../errors.ts";
+import type { MarkdownSource } from "../source.ts";
+import { sourceLocation, type PositionedNode } from "./source-location.ts";
 
 const SCHEME = /^([a-z][a-z\d+.-]*):/i;
 const ALLOWED_LINK_SCHEMES = new Set(["http", "https", "mailto", "tel"]);
-const ALLOWED_IMAGE_SCHEMES = new Set(["http", "https"]);
 
-function sourceLocation(source: MarkdownSource, node: { readonly position?: unknown }) {
-  const position = node.position as
-    | { readonly start?: { readonly line?: number; readonly column?: number } }
-    | undefined;
-  const line = position?.start?.line;
-  const column = position?.start?.column;
-  return {
-    label: source.label,
-    ...(line === undefined ? {} : { line }),
-    ...(column === undefined ? {} : { column }),
-  };
-}
-
-function unsafeUrl(
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-  kind: "link" | "image",
-  reason: string,
-): never {
-  const code = kind === "link" ? errorCodes.unsafeLinkUrl : errorCodes.unsafeImageUrl;
-  throw new ExpectedError(code, `Unsafe ${kind} URL: ${reason}.`, sourceLocation(source, node));
+function unsafeUrl(source: MarkdownSource, node: PositionedNode, reason: string): never {
+  throw new ExpectedError(`Unsafe link URL: ${reason}.`, sourceLocation(source, node));
 }
 
 function stripControls(value: string): string {
@@ -41,16 +23,7 @@ function stripControls(value: string): string {
   return result;
 }
 
-function normalizeUrl(value: string): string {
-  return stripControls(value.trim());
-}
-
-function decodedForPolicy(
-  value: string,
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-  kind: "link" | "image",
-): string {
+function decodedForPolicy(value: string, source: MarkdownSource, node: PositionedNode): string {
   let decoded = value;
   try {
     for (let index = 0; index < 4; index++) {
@@ -59,39 +32,16 @@ function decodedForPolicy(
       decoded = next;
     }
   } catch {
-    unsafeUrl(source, node, kind, "invalid percent encoding");
+    unsafeUrl(source, node, "invalid percent encoding");
   }
   return stripControls(decoded.trim());
-}
-
-function parseAllowedRemote(
-  value: string,
-  scheme: string,
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-  kind: "link" | "image",
-): string {
-  const allowed = kind === "link" ? ALLOWED_LINK_SCHEMES : ALLOWED_IMAGE_SCHEMES;
-  if (!allowed.has(scheme)) unsafeUrl(source, node, kind, "scheme is not allowed");
-
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol.toLowerCase() !== `${scheme}:`) {
-      unsafeUrl(source, node, kind, "ambiguous scheme");
-    }
-    return parsed.href;
-  } catch (error) {
-    if (error instanceof ExpectedError) throw error;
-    unsafeUrl(source, node, kind, "URL is invalid");
-  }
 }
 
 function containedFileUrl(
   value: string,
   policyValue: string,
   source: MarkdownSource,
-  node: { readonly position?: unknown },
-  kind: "link" | "image",
+  node: PositionedNode,
 ): string {
   if (
     value === "" ||
@@ -99,81 +49,57 @@ function containedFileUrl(
     policyValue.startsWith("\\") ||
     policyValue.includes("\\")
   ) {
-    unsafeUrl(source, node, kind, "absolute or ambiguous local paths are not allowed");
+    unsafeUrl(source, node, "absolute or ambiguous local paths are not allowed");
   }
 
   const base = resolve(source.assetBase);
-  let url: URL;
-  let targets: string[];
   try {
     const baseUrl = pathToFileURL(`${base}${sep}`);
-    url = new URL(value, baseUrl);
-    targets = [fileURLToPath(url), fileURLToPath(new URL(policyValue, baseUrl))];
-  } catch {
-    unsafeUrl(source, node, kind, "local path is invalid");
-  }
-
-  for (const target of targets) {
-    const pathFromBase = relative(base, target);
-    if (pathFromBase === ".." || pathFromBase.startsWith(`..${sep}`) || isAbsolute(pathFromBase)) {
-      unsafeUrl(source, node, kind, "local path escapes the source directory");
+    const url = new URL(value, baseUrl);
+    for (const target of [fileURLToPath(url), fileURLToPath(new URL(policyValue, baseUrl))]) {
+      const pathFromBase = relative(base, target);
+      if (
+        pathFromBase === ".." ||
+        pathFromBase.startsWith(`..${sep}`) ||
+        isAbsolute(pathFromBase)
+      ) {
+        unsafeUrl(source, node, "local path escapes the source directory");
+      }
     }
+    return url.href;
+  } catch (error) {
+    if (error instanceof ExpectedError) throw error;
+    unsafeUrl(source, node, "local path is invalid");
   }
-  return url.href;
 }
 
-function safeLinkUrl(
-  rawValue: string,
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-): string {
-  const value = normalizeUrl(rawValue);
-  const decoded = decodedForPolicy(value, source, node, "link");
-
+function safeLinkUrl(rawValue: string, source: MarkdownSource, node: PositionedNode): string {
+  const value = stripControls(rawValue.trim());
+  const decoded = decodedForPolicy(value, source, node);
   if (value.startsWith("#")) return value;
-  if (decoded.startsWith("//"))
-    unsafeUrl(source, node, "link", "protocol-relative URLs are not allowed");
+  if (decoded.startsWith("//")) unsafeUrl(source, node, "protocol-relative URLs are not allowed");
 
   const rawScheme = SCHEME.exec(value)?.[1]?.toLowerCase();
   const decodedScheme = SCHEME.exec(decoded)?.[1]?.toLowerCase();
   if (decodedScheme !== undefined && rawScheme === undefined) {
-    unsafeUrl(source, node, "link", "encoded schemes are not allowed");
+    unsafeUrl(source, node, "encoded schemes are not allowed");
   }
-  if (rawScheme !== undefined) {
-    return parseAllowedRemote(value, rawScheme, source, node, "link");
+  if (rawScheme === undefined) return containedFileUrl(value, decoded, source, node);
+  if (!ALLOWED_LINK_SCHEMES.has(rawScheme)) unsafeUrl(source, node, "scheme is not allowed");
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol.toLowerCase() !== `${rawScheme}:`) {
+      unsafeUrl(source, node, "ambiguous scheme");
+    }
+    return parsed.href;
+  } catch (error) {
+    if (error instanceof ExpectedError) throw error;
+    unsafeUrl(source, node, "URL is invalid");
   }
-  return containedFileUrl(value, decoded, source, node, "link");
 }
 
-function safeImageUrl(
-  rawValue: string,
-  source: MarkdownSource,
-  node: { readonly position?: unknown },
-): string {
-  const value = normalizeUrl(rawValue);
-  const decoded = decodedForPolicy(value, source, node, "image");
-
-  if (decoded.startsWith("//")) {
-    unsafeUrl(source, node, "image", "protocol-relative URLs are not allowed");
-  }
-  const rawScheme = SCHEME.exec(value)?.[1]?.toLowerCase();
-  const decodedScheme = SCHEME.exec(decoded)?.[1]?.toLowerCase();
-  if (decodedScheme !== undefined && rawScheme === undefined) {
-    unsafeUrl(source, node, "image", "encoded schemes are not allowed");
-  }
-  if (rawScheme !== undefined) {
-    return parseAllowedRemote(value, rawScheme, source, node, "image");
-  }
-
-  // T2.2 consumes this candidate and replaces it with validated embedded bytes.
-  containedFileUrl(value, decoded, source, node, "image");
-  return value;
-}
-
-/**
- * Run before every plugin that inserts trusted output. The factory gives each
- * document an isolated plugin instance and captures only durable source data.
- */
+/** Escape authored HTML and validate authored anchors before trusted plugins run. */
 export function authoredContentSafetyPlugin(source: MarkdownSource): HastPluginInput {
   return () =>
     defineHastPlugin({
@@ -181,27 +107,13 @@ export function authoredContentSafetyPlugin(source: MarkdownSource): HastPluginI
       raw(node, context) {
         context.replaceNode(node, { type: "text", value: node.value });
       },
-      element: [
-        {
-          filter: ["a"],
-          visit(node, context) {
-            const href = node.properties.href;
-            if (typeof href !== "string") {
-              unsafeUrl(source, node, "link", "href is missing or invalid");
-            }
-            context.setProperty(node, "href", safeLinkUrl(href, source, node));
-          },
+      element: {
+        filter: ["a"],
+        visit(node, context) {
+          const href = node.properties.href;
+          if (typeof href !== "string") unsafeUrl(source, node, "href is missing or invalid");
+          context.setProperty(node, "href", safeLinkUrl(href, source, node));
         },
-        {
-          filter: ["img"],
-          visit(node, context) {
-            const src = node.properties.src;
-            if (typeof src !== "string") {
-              unsafeUrl(source, node, "image", "src is missing or invalid");
-            }
-            context.setProperty(node, "src", safeImageUrl(src, source, node));
-          },
-        },
-      ],
+      },
     });
 }

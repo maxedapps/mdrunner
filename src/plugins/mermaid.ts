@@ -3,8 +3,9 @@ import { parseMermaid, renderMermaidSVG, type RenderOptions } from "beautiful-me
 import { defineHastPlugin, type HastPluginInput } from "satteri";
 import type { Element, ElementContent } from "hast";
 
-import { ExpectedError, errorCodes } from "../errors.ts";
+import { ExpectedError } from "../errors.ts";
 import type { MarkdownSource } from "../source.ts";
+import { sourceLocation, type PositionedNode } from "./source-location.ts";
 
 const MERMAID_CLASS = "language-mermaid";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
@@ -27,29 +28,14 @@ const RENDER_OPTIONS: Readonly<RenderOptions> = Object.freeze({
 
 type DiagramFamily = "flowchart" | "state" | "sequence" | "class" | "ER" | "XY";
 type MermaidRenderer = (source: string, options?: RenderOptions) => string;
-type PositionedNode = { readonly position?: unknown };
-
 type OrderedXmlNode = Record<string, unknown>;
 
-function sourceLocation(source: MarkdownSource, node: PositionedNode) {
-  const position = node.position as
-    | { readonly start?: { readonly line?: number; readonly column?: number } }
-    | undefined;
-  const line = position?.start?.line;
-  const column = position?.start?.column;
-  return {
-    label: source.label,
-    ...(line === undefined ? {} : { line }),
-    ...(column === undefined ? {} : { column }),
-  };
-}
-
 function invalid(source: MarkdownSource, node: PositionedNode, message: string): never {
-  throw new ExpectedError(errorCodes.mermaidInvalid, message, sourceLocation(source, node));
+  throw new ExpectedError(message, sourceLocation(source, node));
 }
 
 function unsafe(source: MarkdownSource, node: PositionedNode, message: string): never {
-  throw new ExpectedError(errorCodes.mermaidUnsafe, message, sourceLocation(source, node));
+  throw new ExpectedError(message, sourceLocation(source, node));
 }
 
 function meaningfulLines(text: string): string[] {

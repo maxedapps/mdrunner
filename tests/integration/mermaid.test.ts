@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { markdownToHtml } from "satteri";
 
-import { ExpectedError, errorCodes, formatError } from "../../src/errors.ts";
+import { ExpectedError, formatError } from "../../src/errors.ts";
 import { mermaidDiagramPlugin } from "../../src/plugins/mermaid.ts";
 import type { MarkdownSource } from "../../src/source.ts";
 
@@ -74,7 +74,7 @@ describe("static Mermaid integration", () => {
   ])("rejects %s before producing partial output", async (_description, body) => {
     const error = await failure(`\`\`\`mermaid\n${body}\n\`\`\``);
 
-    expect(error.code).toBe(errorCodes.mermaidInvalid);
+    expect(error.message).toMatch(/Unsupported|Invalid|empty/u);
     expect(error.source).toEqual({ label: "/workspace/diagrams.md", line: 1, column: 1 });
   });
 
@@ -91,7 +91,7 @@ describe("static Mermaid integration", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ExpectedError);
       const expected = error as ExpectedError;
-      expect(expected.code).toBe(errorCodes.mermaidInvalid);
+      expect(expected.message).toBe("Invalid Mermaid flowchart diagram.");
       expect(expected.source).toEqual({
         label: "/workspace/diagrams.md",
         line: 3,

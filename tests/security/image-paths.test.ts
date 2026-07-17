@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { markdownToHtml } from "satteri";
 
-import { ExpectedError, errorCodes, formatError } from "../../src/errors.ts";
+import { ExpectedError, formatError } from "../../src/errors.ts";
 import { imageEmbeddingPlugin } from "../../src/plugins/images.ts";
 import type { MarkdownSource } from "../../src/source.ts";
 import { withTemporaryDirectory } from "../helpers/temp-dir.ts";
@@ -48,7 +48,6 @@ describe("local image path containment", () => {
         ["fake.png", "do not match"],
       ] as const) {
         const error = await failure(`![asset](${path})\n`, base);
-        expect(error.code).toBe(errorCodes.imageAssetFailed);
         expect(error.message).toContain(message);
         expect(error.source).toEqual({ label: join(base, "document.md"), line: 1, column: 1 });
       }
@@ -67,7 +66,6 @@ describe("local image path containment", () => {
 
       for (const path of ["../outside.png", "%2e%2e/outside.png", "escape.png"]) {
         const error = await failure(`![asset](${path})\n`, base);
-        expect(error.code).toBe(errorCodes.imageAssetFailed);
         expect(error.message).toMatch(/escapes|outside/u);
       }
 
@@ -91,9 +89,7 @@ describe("local image path containment", () => {
   ])("defensively rejects %s", async (_label, url) => {
     await withTemporaryDirectory(async (base) => {
       const error = await failure(`![asset](${url})\n`, base);
-      expect(
-        error.code === errorCodes.unsafeImageUrl || error.code === errorCodes.imageAssetFailed,
-      ).toBe(true);
+      expect(error.message).toMatch(/Unsafe image URL|Image path/u);
       expect(error.source?.line).toBe(1);
     });
   });
@@ -102,7 +98,6 @@ describe("local image path containment", () => {
     await withTemporaryDirectory(async (base) => {
       const error = await failure("paragraph\n\n![missing](missing.png)\n", base);
 
-      expect(error.code).toBe(errorCodes.imageAssetFailed);
       expect(error.source).toEqual({ label: join(base, "document.md"), line: 3, column: 1 });
       expect(formatError(error)).toStartWith(`${join(base, "document.md")}:3:1:`);
     });
@@ -119,7 +114,6 @@ describe("local image path containment", () => {
         await chmod(path, 0o000);
         try {
           const error = await failure("![asset](unreadable.png)\n", base);
-          expect(error.code).toBe(errorCodes.imageAssetFailed);
           expect(error.message).toContain("could not be read");
         } finally {
           await chmod(path, 0o600);

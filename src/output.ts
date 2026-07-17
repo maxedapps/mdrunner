@@ -1,60 +1,36 @@
 import { createHash, randomUUID } from "node:crypto";
-import {
-  mkdir as nodeMkdir,
-  open as nodeOpen,
-  rename as nodeRename,
-  unlink as nodeUnlink,
-} from "node:fs/promises";
+import { mkdir, open, rename, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 
-import { ExpectedError, errorCodes } from "./errors.ts";
+import { ExpectedError } from "./errors.ts";
 import type { MarkdownSource } from "./source.ts";
 
-export interface OutputFileHandle {
-  writeFile(contents: string): Promise<void>;
-  sync(): Promise<void>;
-  close(): Promise<void>;
-}
+const WINDOWS_RESERVED_STEM = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+const MAX_STEM_BYTES = 120;
 
-export interface OutputFileSystem {
-  mkdir(path: string): Promise<void>;
-  openExclusive(path: string): Promise<OutputFileHandle>;
+export interface ReplacementOperations {
   rename(from: string, to: string): Promise<void>;
   unlink(path: string): Promise<void>;
 }
 
-export interface WriteOutputOptions {
-  readonly temporaryDirectory?: string;
-  readonly fileSystem?: OutputFileSystem;
-  readonly platform?: NodeJS.Platform;
-  readonly createUniqueId?: () => string;
-}
-
-const defaultFileSystem: OutputFileSystem = {
-  async mkdir(path) {
-    await nodeMkdir(path, { recursive: true });
-  },
-  async openExclusive(path) {
-    return nodeOpen(path, "wx", 0o600);
-  },
-  rename: nodeRename,
-  unlink: nodeUnlink,
-};
-
-const destinationQueues = new Map<string, Promise<void>>();
-const WINDOWS_RESERVED_STEM = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
-const MAX_STEM_BYTES = 120;
+const replacementOperations: ReplacementOperations = { rename, unlink };
 
 function hasNodeCode(error: unknown, ...codes: string[]): boolean {
-  if (typeof error !== "object" || error === null || !("code" in error)) return false;
-  return codes.includes(String(error.code));
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    codes.includes(String(error.code))
+  );
 }
 
-function outputError(destination: string): ExpectedError {
-  return new ExpectedError(errorCodes.outputWriteFailed, "Could not write generated HTML.", {
-    label: destination,
-  });
+async function safelyUnlink(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch {
+    // Cleanup must not replace the primary CLI diagnostic.
+  }
 }
 
 function truncateUtf8(value: string, maximumBytes: number): string {
@@ -69,9 +45,8 @@ function truncateUtf8(value: string, maximumBytes: number): string {
   return result;
 }
 
-function uniqueComponent(createUniqueId: () => string): string {
-  const sanitized = createUniqueId().replaceAll(/[^a-zA-Z0-9_-]/g, "-");
-  return sanitized === "" ? "unique" : sanitized;
+function uniqueComponent(): string {
+  return randomUUID().replaceAll(/[^a-zA-Z0-9_-]/g, "-");
 }
 
 /** Return a portable filename stem while preserving ordinary spaces and Unicode. */
@@ -103,102 +78,59 @@ export function outputPathForSource(source: MarkdownSource, temporaryDirectory =
   return join(temporaryDirectory, "mdrunner", cacheDigest(source), outputName);
 }
 
-async function safelyUnlink(fileSystem: OutputFileSystem, path: string): Promise<void> {
-  try {
-    await fileSystem.unlink(path);
-  } catch (error) {
-    if (!hasNodeCode(error, "ENOENT")) {
-      // Cleanup is best-effort because the primary failure remains the useful CLI diagnostic.
-    }
-  }
-}
-
-async function withDestinationQueue<T>(
-  destination: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const previous = destinationQueues.get(destination) ?? Promise.resolve();
-  let release!: () => void;
-  const current = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const tail = previous.then(() => current);
-  destinationQueues.set(destination, tail);
-
-  await previous;
-  try {
-    return await operation();
-  } finally {
-    release();
-    if (destinationQueues.get(destination) === tail) destinationQueues.delete(destination);
-  }
-}
-
-async function replaceOnWindows(
-  fileSystem: OutputFileSystem,
+/** Replace a completed sibling while retaining/restoring the previous Windows artifact. */
+export async function replaceCompletedFile(
   temporaryPath: string,
   destination: string,
   backupPath: string,
+  platform: NodeJS.Platform = process.platform,
+  operations: ReplacementOperations = replacementOperations,
 ): Promise<void> {
+  if (platform !== "win32") {
+    await operations.rename(temporaryPath, destination);
+    return;
+  }
+
   try {
-    await fileSystem.rename(temporaryPath, destination);
+    await operations.rename(temporaryPath, destination);
     return;
   } catch (error) {
     if (!hasNodeCode(error, "EACCES", "EEXIST", "EPERM")) throw error;
   }
 
-  // Some Windows filesystems refuse rename-over-existing. Keep the completed
-  // new file and the previous valid destination as siblings throughout the
-  // bounded fallback, and restore the previous file if installation fails.
-  await fileSystem.rename(destination, backupPath);
+  await operations.rename(destination, backupPath);
   try {
-    await fileSystem.rename(temporaryPath, destination);
+    await operations.rename(temporaryPath, destination);
   } catch (error) {
     try {
-      await fileSystem.rename(backupPath, destination);
+      await operations.rename(backupPath, destination);
     } catch {
-      // The original remains complete at backupPath even if an OS-level fault
-      // prevents restoration. The caller still reports replacement failure.
+      // The previous complete output remains at backupPath if restoration itself fails.
     }
     throw error;
   }
-  await fileSystem.unlink(backupPath);
+  await operations.unlink(backupPath);
 }
 
-async function createCompletedTemporaryFile(
-  fileSystem: OutputFileSystem,
-  directory: string,
-  destinationName: string,
-  html: string,
-  createUniqueId: () => string,
-): Promise<string> {
+async function writeCompletedSibling(directory: string, destinationName: string, html: string) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const unique = uniqueComponent(createUniqueId);
-    const temporaryPath = join(directory, `.${destinationName}.${process.pid}-${unique}.tmp`);
-    let handle: OutputFileHandle;
+    const path = join(directory, `.${destinationName}.${process.pid}-${uniqueComponent()}.tmp`);
+    let handle;
     try {
-      handle = await fileSystem.openExclusive(temporaryPath);
+      handle = await open(path, "wx", 0o600);
     } catch (error) {
       if (hasNodeCode(error, "EEXIST")) continue;
       throw error;
     }
 
-    let closed = false;
     try {
       await handle.writeFile(html);
       await handle.sync();
       await handle.close();
-      closed = true;
-      return temporaryPath;
+      return path;
     } catch (error) {
-      if (!closed) {
-        try {
-          await handle.close();
-        } catch {
-          // Unlink below is still attempted on every failure path.
-        }
-      }
-      await safelyUnlink(fileSystem, temporaryPath);
+      await handle.close().catch(() => undefined);
+      await safelyUnlink(path);
       throw error;
     }
   }
@@ -209,42 +141,24 @@ async function createCompletedTemporaryFile(
 export async function writeOutput(
   source: MarkdownSource,
   html: string,
-  options: WriteOutputOptions = {},
+  temporaryDirectory = tmpdir(),
 ): Promise<string> {
-  const fileSystem = options.fileSystem ?? defaultFileSystem;
-  const destination = outputPathForSource(source, options.temporaryDirectory);
+  const destination = outputPathForSource(source, temporaryDirectory);
   const directory = dirname(destination);
-  const createUniqueId = options.createUniqueId ?? randomUUID;
   let temporaryPath: string | undefined;
 
   try {
-    await fileSystem.mkdir(directory);
-    temporaryPath = await createCompletedTemporaryFile(
-      fileSystem,
+    await mkdir(directory, { recursive: true });
+    temporaryPath = await writeCompletedSibling(directory, basename(destination), html);
+    const backupPath = join(
       directory,
-      basename(destination),
-      html,
-      createUniqueId,
+      `.${basename(destination)}.${process.pid}-${uniqueComponent()}.backup`,
     );
-
-    await withDestinationQueue(destination, async () => {
-      if (
-        options.platform === "win32" ||
-        (options.platform === undefined && process.platform === "win32")
-      ) {
-        const backupPath = join(
-          directory,
-          `.${basename(destination)}.${process.pid}-${uniqueComponent(createUniqueId)}.backup`,
-        );
-        await replaceOnWindows(fileSystem, temporaryPath!, destination, backupPath);
-      } else {
-        await fileSystem.rename(temporaryPath!, destination);
-      }
-      temporaryPath = undefined;
-    });
+    await replaceCompletedFile(temporaryPath, destination, backupPath);
+    temporaryPath = undefined;
     return destination;
   } catch {
-    if (temporaryPath !== undefined) await safelyUnlink(fileSystem, temporaryPath);
-    throw outputError(destination);
+    if (temporaryPath !== undefined) await safelyUnlink(temporaryPath);
+    throw new ExpectedError("Could not write generated HTML.", { label: destination });
   }
 }

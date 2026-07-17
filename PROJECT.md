@@ -2,7 +2,7 @@
 
 ## Overview
 
-`mdrunner` is a small CLI, intended for standalone distribution, that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its source entry currently runs with Bun and the installed pinned dependencies; standalone packaging is Phase 3 work. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
+`mdrunner` is a small standalone CLI that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
 
 ```bash
 mdrunner ./README.md
@@ -129,7 +129,7 @@ The document title is selected in this order:
 2. Source filename without extension for file input
 3. `Markdown document` for stdin input without a level-one heading
 
-Frontmatter remains available to the pipeline but is not treated as a configuration system in the initial version.
+YAML and TOML frontmatter are recognized so their delimiters and contents stay out of the document, but the parsed metadata is discarded and is not a configuration system.
 
 ### Syntax highlighting
 
@@ -248,7 +248,7 @@ Bun is used for:
 - Test runner and assertions
 - Bundling and standalone executable compilation
 
-Source development and validation use the pinned Bun runtime. Phase 3 will add and native-smoke-test `bun build --compile` release binaries; until that gate exists, end-user runtime independence is not yet verified.
+Source development and validation use the pinned Bun runtime. The build embeds the selected Sätteri native addon in a Bun standalone executable; end users do not need Bun or Node.
 
 ### Sätteri instead of `Bun.markdown`
 
@@ -262,7 +262,7 @@ Sätteri is pre-1.0, so its exact version is pinned. Upgrades require a changelo
 
 Sätteri uses a platform-specific N-API addon. Bun's compiler does not automatically retain Sätteri's dynamically selected binding in the tested setup.
 
-Each release target therefore requires a small build bootstrap that embeds the matching `.node` addon with Bun's file loader, sets `NAPI_RS_NATIVE_LIBRARY_PATH`, and only then dynamically imports Sätteri. That bootstrap and native compiled smoke coverage remain Phase 3 work. No platform is a verified standalone release target until its compiled executable passes that gate.
+Each build target therefore uses a small generated bootstrap that embeds the matching `.node` addon with Bun's file loader, sets `NAPI_RS_NATIVE_LIBRARY_PATH`, and only then dynamically imports Sätteri. No platform is a native-qualified standalone release target until its compiled executable passes `bun run test:standalone` on the matching OS, architecture, and Linux libc.
 
 ### Expressive Code and Shiki
 
@@ -282,7 +282,7 @@ A small internal adapter opens the generated file with the platform default:
 - Linux: `xdg-open`
 - Windows: PowerShell `Start-Process`
 
-Commands are spawned with argument arrays rather than interpolated shell commands. The adapter is dependency-injected so tests never open a real browser.
+Commands are spawned with argument arrays rather than interpolated shell commands. Unit tests exercise the narrow spawn boundary, while CLI and standalone tests intercept the platform executable through `PATH`.
 
 ### Development tooling
 
@@ -305,7 +305,7 @@ All automated tests use `bun test`. Tests must be fast enough for normal local d
 - Assert both positive behavior and meaningful absence: no Mermaid runtime, no external product assets, no unsafe protocols, no executable raw HTML.
 - Test failures and diagnostics as first-class product behavior.
 - Every fixed bug adds a regression test that would have caught it.
-- Coverage is reported and monitored, but line coverage never substitutes for boundary and integration tests.
+- Test quality is judged by protected behavior and trust boundaries rather than a mandatory numeric coverage target.
 
 ### Unit tests
 
@@ -408,7 +408,7 @@ The release artifact itself is tested, not just source execution:
 5. Verify the browser opener was intercepted.
 6. Verify the process exits and leaves no child process or listener.
 
-Native CI runners should smoke-test their own platform artifacts. Cross-compilation success alone is insufficient evidence that the embedded N-API binding loads.
+The same command must pass in a matching native development or release environment before that target is described as native-qualified. Cross-compilation success alone is insufficient evidence that the embedded N-API binding loads.
 
 ### Optional browser validation
 
@@ -431,22 +431,20 @@ A change is ready when:
 - Formatting and linting pass.
 - Relevant source, pipeline, security, CLI, and regression tests exist.
 - The generated document contract still passes.
-- A compiled executable smoke test passes for release-affecting changes.
+- `bun run test:standalone` passes on the current native platform for release-affecting changes.
 - No server or listener has been introduced.
 - No new CLI flag, dependency, or runtime script exists without a concrete user-facing justification.
 
-## Supported releases
+## Standalone targets and qualification
 
-Initial release targets should be limited to platforms we can test natively:
+The build implements eight explicit target mappings:
 
-- macOS arm64
-- macOS x64 when a native runner is available
-- Linux x64 when a native runner is available
-- Windows x64 when a native runner is available
+- macOS arm64 and x64
+- Linux arm64 and x64 with glibc
+- Linux arm64 and x64 with musl
+- Windows arm64 and x64
 
-Additional architectures are added only with a working Sätteri binding and native compiled-artifact test coverage.
-
-macOS release binaries should be signed and notarized before public distribution.
+These mappings describe build capability, not native release qualification. A target is native-qualified only after `bun run test:standalone` passes on that matching OS, architecture, and Linux libc. Unrun targets remain configured but unqualified. The repository intentionally contains no hosted CI configuration.
 
 ## Non-goals
 

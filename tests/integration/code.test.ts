@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { markdownToHtml } from "satteri";
 
-import { ExpectedError, errorCodes, formatError } from "../../src/errors.ts";
+import { ExpectedError, formatError } from "../../src/errors.ts";
 import { staticExpressiveCodePlugin } from "../../src/plugins/expressive-code.ts";
 import { mermaidDiagramPlugin } from "../../src/plugins/mermaid.ts";
 import type { MarkdownSource } from "../../src/source.ts";
@@ -110,7 +110,6 @@ console.log("ordinary");
     } catch (error) {
       expect(error).toBeInstanceOf(ExpectedError);
       const expected = error as ExpectedError;
-      expect(expected.code).toBe(errorCodes.codeHighlightFailed);
       expect(expected.message).toContain("renderer unavailable");
       expect(expected.source).toEqual({ label: "/workspace/code.md", line: 3, column: 1 });
       expect(formatError(expected)).toStartWith("/workspace/code.md:3:1:");

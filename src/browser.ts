@@ -1,4 +1,4 @@
-import { ExpectedError, errorCodes } from "./errors.ts";
+import { ExpectedError } from "./errors.ts";
 
 export interface SpawnedBrowserCommand {
   readonly exited: Promise<number>;
@@ -37,10 +37,7 @@ export function browserCommand(
         encodePowerShellCommand(fileUrl),
       ];
     default:
-      throw new ExpectedError(
-        errorCodes.browserUnsupportedPlatform,
-        `Opening a browser is not supported on platform ${platform}.`,
-      );
+      throw new ExpectedError(`Opening a browser is not supported on platform ${platform}.`);
   }
 }
 
@@ -62,25 +59,16 @@ export async function openBrowser(
   try {
     spawned = (options.spawn ?? defaultSpawn)(command);
   } catch {
-    throw new ExpectedError(
-      errorCodes.browserLaunchFailed,
-      "Could not start the default browser opener.",
-    );
+    throw new ExpectedError("Could not start the default browser opener.");
   }
 
   let exitCode: number;
   try {
     exitCode = await spawned.exited;
   } catch {
-    throw new ExpectedError(
-      errorCodes.browserLaunchFailed,
-      "Could not start the default browser opener.",
-    );
+    throw new ExpectedError("Could not start the default browser opener.");
   }
   if (exitCode !== 0) {
-    throw new ExpectedError(
-      errorCodes.browserNonZeroExit,
-      `Default browser opener exited with status ${exitCode}.`,
-    );
+    throw new ExpectedError(`Default browser opener exited with status ${exitCode}.`);
   }
 }
