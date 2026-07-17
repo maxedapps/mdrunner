@@ -30,6 +30,13 @@ impl MarkdownSource {
             Self::Stdin { cwd, .. } => cwd,
         }
     }
+
+    pub(crate) fn label(&self) -> String {
+        match self {
+            Self::File { canonical_path, .. } => canonical_path.display().to_string(),
+            Self::Stdin { .. } => "stdin".to_owned(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -60,7 +67,7 @@ pub(crate) fn read_markdown_source(
     read_stdin_source(stdin, stdin_is_terminal, cwd).map(SourceSelection::Render)
 }
 
-fn read_file_source(argument: &str, cwd: &Path) -> Result<MarkdownSource, AppError> {
+pub(crate) fn read_file_source(argument: &str, cwd: &Path) -> Result<MarkdownSource, AppError> {
     let requested_path = cwd.join(argument);
     let has_markdown_extension = requested_path
         .extension()

@@ -1,11 +1,15 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use comrak::arena_tree::NodeEdge;
 use comrak::nodes::NodeValue;
-use comrak::{Arena, Options, format_html, parse_document};
+use comrak::options::Plugins;
+use comrak::{Arena, Options, format_html_with_plugins, parse_document};
 use url::Url;
 
 use crate::AppError;
+use crate::assets::resolve_image;
+use crate::code::{CodeRenderer, PlaintextRenderer};
 use crate::source::MarkdownSource;
 
 const DOCUMENT_CSP: &str = "default-src 'none'; base-uri 'none'; connect-src 'none'; font-src 'none'; form-action 'none'; frame-src 'none'; img-src data: http: https:; manifest-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; style-src 'unsafe-inline'; worker-src 'none'";
@@ -15,13 +19,29 @@ pub(crate) fn render_document(source: &MarkdownSource) -> Result<String, AppErro
     let arena = Arena::new();
     let options = markdown_options(source.markdown());
     let root = parse_document(&arena, source.markdown(), &options);
-    let title = prepare_ast(root, source)?
+    let prepared = prepare_ast(root, source)?;
+    let title = prepared
+        .title
         .filter(|title| !title.is_empty())
         .unwrap_or_else(|| fallback_title(source));
 
+    let code_renderer = CodeRenderer::new(source.label(), prepared.code_positions);
+    let plaintext_renderer = PlaintextRenderer;
+    let mut plugins = Plugins::default();
+    for language in prepared.code_languages {
+        plugins
+            .render
+            .codefence_renderers
+            .insert(language, &code_renderer);
+    }
+    plugins.render.codefence_syntax_highlighter = Some(&plaintext_renderer);
+
     let mut fragment = String::new();
-    format_html(root, &options, &mut fragment)
+    format_html_with_plugins(root, &options, &mut fragment, &plugins)
         .map_err(|_| AppError::new("Could not render Markdown."))?;
+    if let Some(error) = code_renderer.take_error() {
+        return Err(error);
+    }
 
     Ok(assemble_document(&title, &fragment))
 }
@@ -53,17 +73,27 @@ fn leading_frontmatter(markdown: &str) -> Option<&'static str> {
     }
 }
 
+struct PreparedAst {
+    title: Option<String>,
+    code_languages: HashSet<String>,
+    code_positions: Vec<(usize, usize)>,
+}
+
 fn prepare_ast<'a>(
     root: &'a comrak::nodes::AstNode<'a>,
     source: &MarkdownSource,
-) -> Result<Option<String>, AppError> {
+) -> Result<PreparedAst, AppError> {
     let mut title = None;
     let mut h1_text = None::<String>;
+    let mut code_languages = HashSet::new();
+    let mut code_positions = Vec::new();
 
     for edge in root.traverse() {
         match edge {
             NodeEdge::Start(node) => {
                 let mut data = node.data.borrow_mut();
+                let line = data.sourcepos.start.line;
+                let column = data.sourcepos.start.column;
                 match &mut data.value {
                     NodeValue::Heading(heading) if heading.level == 1 && title.is_none() => {
                         h1_text = Some(String::new());
@@ -83,6 +113,22 @@ fn prepare_ast<'a>(
                     NodeValue::Link(link) => {
                         link.url = rewrite_link(&link.url, source.asset_base())?;
                     }
+                    NodeValue::Image(image) => {
+                        image.url = resolve_image(
+                            &image.url,
+                            source.asset_base(),
+                            &source.label(),
+                            line,
+                            column,
+                        )?;
+                    }
+                    NodeValue::CodeBlock(block) => {
+                        let language = block.info.split_whitespace().next().unwrap_or_default();
+                        if !language.is_empty() {
+                            code_languages.insert(language.to_owned());
+                            code_positions.push((line, column));
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -100,7 +146,11 @@ fn prepare_ast<'a>(
         }
     }
 
-    Ok(title)
+    Ok(PreparedAst {
+        title,
+        code_languages,
+        code_positions,
+    })
 }
 
 fn rewrite_link(raw: &str, asset_base: &Path) -> Result<String, AppError> {
@@ -163,7 +213,10 @@ fn escape_html(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::path::PathBuf;
+
+    use tempfile::tempdir;
 
     use super::*;
 
@@ -259,5 +312,39 @@ mod tests {
         assert!(!html.contains("@import"));
         assert!(!html.contains("@font-face"));
         assert!(!html.contains("type=\"module\""));
+    }
+
+    #[test]
+    fn no_label_is_numbered_escaped_plaintext() {
+        let html =
+            render_document(&stdin_source("```\nalpha < beta && gamma > delta\n```\n")).unwrap();
+        assert!(html.contains("data-language=\"\""));
+        assert!(html.contains("class=\"mdr-code-line\" data-line=\"1\""));
+        assert!(html.contains("alpha &lt; beta &amp;&amp; gamma &gt; delta"));
+        assert!(!html.contains("<button"));
+        assert!(!html.contains("<script"));
+    }
+
+    #[test]
+    fn stdin_sources_embed_images_relative_to_their_canonical_cwd() {
+        let directory = tempdir().unwrap();
+        fs::write(directory.path().join("pixel.png"), b"png bytes").unwrap();
+        let source = MarkdownSource::Stdin {
+            markdown: "![stdin asset](pixel.png)\n".to_owned(),
+            cwd: fs::canonicalize(directory.path()).unwrap(),
+        };
+        let html = render_document(&source).unwrap();
+        assert!(html.contains("src=\"data:image/png;base64,cG5nIGJ5dGVz\""));
+    }
+
+    #[test]
+    fn invalid_code_metadata_reports_the_fence_source_line() {
+        let source = file_source(
+            "# Before\n\nParagraph\n\n```ts del={2}\nconst value = 1;\n```\n",
+            "Code.md",
+        );
+        let error = render_document(&source).unwrap_err().to_string();
+        assert!(error.starts_with("/workspace/docs/Code.md:5:1:"), "{error}");
+        assert!(error.contains("Unsupported code fence metadata"));
     }
 }

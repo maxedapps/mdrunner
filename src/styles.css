@@ -8,6 +8,8 @@
   --mdr-accent: #0969da;
   --mdr-accent-contrast: #ffffff;
   --mdr-code-background: #eff1f3;
+  --mdr-code-mark: #fff8c5;
+  --mdr-code-insert: #aceebb;
   --mdr-quote-border: #8c959f;
   --mdr-table-stripe: #f6f8fa;
   --mdr-focus: #0550ae;
@@ -33,6 +35,8 @@
     --mdr-accent: #58a6ff;
     --mdr-accent-contrast: #0d1117;
     --mdr-code-background: #20262e;
+    --mdr-code-mark: #3b3416;
+    --mdr-code-insert: #183a24;
     --mdr-quote-border: #6e7681;
     --mdr-table-stripe: #161b22;
     --mdr-focus: #79c0ff;
@@ -248,13 +252,46 @@ body {
   white-space: pre;
 }
 
-.markdown-body .expressive-code {
+.markdown-body .code-frame {
+  max-width: 100%;
   margin-block: 1.25rem;
+  overflow: hidden;
+  border: 1px solid var(--mdr-border);
+  border-radius: 0.6rem;
+  background: var(--mdr-surface);
 }
 
-.markdown-body .expressive-code pre {
-  max-width: 100%;
-  overflow-x: auto;
+.markdown-body .code-title {
+  padding: 0.55rem 1rem;
+  overflow: hidden;
+  border-bottom: 1px solid var(--mdr-border);
+  color: var(--mdr-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-body .code-frame pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.markdown-body .mdr-code .l-line,
+.markdown-body .mdr-code-line {
+  display: block;
+  min-width: max-content;
+  padding-inline: 1rem;
+}
+
+.markdown-body .mdr-code .l-line.mark {
+  background: var(--mdr-code-mark);
+}
+
+.markdown-body .mdr-code .l-line.ins {
+  border-left: 0.2rem solid var(--mdr-accent);
+  background: var(--mdr-code-insert);
 }
 
 .markdown-body img {
@@ -305,6 +342,17 @@ body {
   font-weight: 650;
 }
 
+@media (prefers-color-scheme: dark) {
+  .markdown-body .lumis,
+  .markdown-body .lumis span {
+    color: var(--lumis-dark) !important;
+    background-color: var(--lumis-dark-bg) !important;
+    font-style: var(--lumis-dark-font-style) !important;
+    font-weight: var(--lumis-dark-font-weight) !important;
+    text-decoration: var(--lumis-dark-text-decoration) !important;
+  }
+}
+
 @media (max-width: 40rem) {
   .markdown-body {
     width: min(calc(100% - 1.25rem), var(--mdr-content-width));
@@ -331,6 +379,8 @@ body {
     --mdr-border: #777777;
     --mdr-accent: #000000;
     --mdr-code-background: #f3f3f3;
+    --mdr-code-mark: #fff8c5;
+    --mdr-code-insert: #d7f8df;
     --mdr-quote-border: #555555;
     --mdr-table-stripe: #f7f7f7;
   }
