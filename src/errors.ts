@@ -9,6 +9,8 @@ export const errorCodes = {
   invalidUtf8: "SOURCE_INVALID_UTF8",
   emptyStdin: "SOURCE_EMPTY_STDIN",
   outputWriteFailed: "OUTPUT_WRITE_FAILED",
+  unsafeLinkUrl: "RENDER_UNSAFE_LINK_URL",
+  unsafeImageUrl: "RENDER_UNSAFE_IMAGE_URL",
   browserUnsupportedPlatform: "BROWSER_UNSUPPORTED_PLATFORM",
   browserLaunchFailed: "BROWSER_LAUNCH_FAILED",
   browserNonZeroExit: "BROWSER_NON_ZERO_EXIT",
