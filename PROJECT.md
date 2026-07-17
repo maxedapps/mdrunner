@@ -1,497 +1,125 @@
-# mdr
+# mdr project contract
 
-## Overview
+## Purpose
 
-`mdr` is a small standalone CLI that turns Markdown input into one finished HTML file and opens it in the user's default browser. Its main purpose is rendering `.md` files, but it also accepts Markdown piped through standard input.
+`mdr` is a small synchronous Rust CLI that turns one Markdown source into one finished, self-contained HTML file, opens the file in the user's default browser, and exits.
 
 ```bash
 mdr ./README.md
 cat README.md | mdr
 ```
 
-The command performs all meaningful rendering before the browser opens:
+The product deliberately has no subcommands, server mode, watcher, daemon, renderer selector, theme configuration, runtime JavaScript, or custom release orchestration.
 
-- Markdown is converted to HTML.
-- GFM features are rendered.
-- Code blocks are syntax-highlighted.
-- Mermaid fences are converted to inline SVG.
-- Product CSS and local images are embedded.
-- A complete HTML document is written to disk.
-- The generated `file://` URL is opened.
-- The process exits.
-
-There is no HTTP server, localhost listener, background daemon, client-side Markdown parser, or client-side Mermaid renderer.
-
-## Product principles
-
-1. **One obvious command** — accept a Markdown file or piped Markdown, generate the page, open it.
-2. **Generation-time rendering** — the browser receives finished HTML, not work to perform.
-3. **Self-contained output** — mdr-owned CSS, diagram SVG, highlighting styles, and local images are inline.
-4. **Beautiful defaults** — typography, spacing, code, tables, diagrams, dark mode, and print output work without configuration.
-5. **Safe defaults** — untrusted raw HTML and dangerous URL schemes do not become executable browser content.
-6. **No feature theater** — avoid subcommands, configuration systems, engine selectors, and flags without a demonstrated need.
-7. **High-value tests** — test user-visible behavior, failure modes, security boundaries, and the compiled executable rather than chasing superficial coverage.
-
-## CLI contract
-
-### Usage
-
-```bash
-mdr <file.md>
-command-producing-markdown | mdr
-```
-
-The CLI has:
-
-- No subcommands.
-- No server mode.
-- No watch mode.
-- No theme, renderer, Mermaid-engine, or output-format flags.
-- Only conventional help handling may be added (`-h` / `--help`).
-
-### Input
-
-mdr chooses one input source without an additional flag:
-
-- With one positional argument, it reads that `.md` file.
-- With no positional argument and non-interactive standard input, it reads UTF-8 Markdown from stdin until EOF.
-- With no positional argument and an interactive terminal, it prints usage and exits instead of waiting indefinitely.
-- More than one positional argument is rejected.
-- A file argument takes precedence if stdin is also redirected.
-- Relative file paths are resolved from the current working directory, and symlinks are resolved before reading.
-- Relative local assets in file input are resolved from the Markdown file's directory.
-- Relative local assets in stdin input are resolved from the current working directory.
-- Missing files, directories, unsupported file extensions, unreadable files, invalid UTF-8 input, and empty stdin produce concise errors and a non-zero exit code.
-
-### Output
-
-The generated file is written atomically to a deterministic cache location under the operating system's temporary directory:
+## User flow
 
 ```text
-<tmp>/mdr/<hash-of-source-identity>/<source-name>.html
-```
-
-For file input, the source identity is the canonical source path and the output uses its filename. For stdin, the identity includes the current working directory and Markdown content, and the output is named `stdin.html`. Repeated input reuses the same output location. A successful run replaces the previous generated file. The file is not deleted when the CLI exits because the browser may still be loading or reloading it.
-
-On success, mdr:
-
-1. Prints the generated HTML path.
-2. Opens its `file://` URL in the default browser.
-3. Exits with status `0`.
-
-If the browser cannot be opened, the generated file remains valid, its path is printed, and the command exits with a clear error.
-
-## Output contract
-
-A generated document must:
-
-- Be a complete HTML5 document with doctype, language, charset, viewport, title, and body.
-- Open directly through `file://` without a server.
-- Contain no external mdr runtime assets.
-- Contain no Mermaid runtime.
-- Require no JavaScript for Markdown, diagrams, highlighting, or theme selection.
-- Use inline CSS and `prefers-color-scheme` for automatic light/dark rendering.
-- Embed local Markdown images as data URIs.
-- Keep authored remote links and remote image URLs as remote URLs; mdr does not fetch arbitrary remote content during generation. A browser may request an authored remote image after opening the result.
-- Be responsive and printable.
-- Remain readable when an optional enhancement fails.
-
-Small inline JavaScript enhancements are intentionally excluded initially. Copy buttons, theme toggles, diagram controls, and similar features are not worth adding until they demonstrate clear value.
-
-## Features
-
-### Markdown and GFM
-
-Sätteri provides Markdown parsing and the MDAST/HAST transformation pipeline.
-
-Supported initial syntax includes:
-
-- Headings
-- Paragraphs and line breaks
-- Emphasis and strong emphasis
-- Links and images
-- Blockquotes
-- Ordered and unordered lists
-- GFM tables
-- GFM task lists
-- GFM strikethrough
-- GFM autolinks
-- GFM footnotes
-- Fenced and indented code blocks
-- Horizontal rules
-- YAML/TOML frontmatter recognition
-
-Heading IDs are generated deterministically and deduplicated so fragment links work in the static file.
-
-The document title is selected in this order:
-
-1. First level-one heading
-2. Source filename without extension for file input
-3. `Markdown document` for stdin input without a level-one heading
-
-YAML and TOML frontmatter are recognized so their delimiters and contents stay out of the document, but the parsed metadata is discarded and is not a configuration system.
-
-### Syntax highlighting
-
-`satteri-expressive-code` and Expressive Code/Shiki render fenced code blocks during generation.
-
-Initial behavior:
-
-- Highlight common programming languages automatically.
-- Preserve unknown languages as readable escaped code.
-- Use coordinated light and dark themes.
-- Render code tokens, frames, titles, and line markers statically.
-- Inline all required highlighting CSS.
-- Omit Expressive Code's JavaScript modules.
-
-### Mermaid diagrams
-
-A fenced block with language `mermaid` is converted to inline SVG during generation:
-
-````markdown
-```mermaid
-flowchart LR
-  A[Markdown] --> B[Static HTML]
-```
-````
-
-`beautiful-mermaid` is the single initial diagram engine because it is synchronous, pure TypeScript, DOM-free, fast, themeable, and compatible with Bun standalone compilation.
-
-Supported initial diagram families:
-
-- Flowchart and state
-- Sequence
-- Class
-- Entity relationship
-- XY charts
-
-There is no engine-selection flag and no silent fallback to a different renderer. Unsupported headers, empty diagrams, known dangling relation/message cases, and invalid numeric XY series fail generation with a concise source-positioned diagnostic. `beautiful-mermaid` implements a Mermaid-like subset and some family parsers tolerate or ignore statements outside that subset, so this is not full official-Mermaid grammar validation. The browser is not opened after a detected diagram failure.
-
-Official Mermaid through `Bun.WebView` is deliberately deferred. It can provide broader Mermaid compatibility without a server, but adds generation-time browser requirements and implementation complexity. It should only replace the initial engine if real documents demonstrate that the missing diagram families matter.
-
-### Presentation
-
-The HTML shell provides:
-
-- Readable system-font typography
-- A constrained, responsive content width
-- Automatic light/dark colors through CSS media queries
-- Accessible contrast and focus styles
-- Styled headings, lists, quotes, tables, tasks, footnotes, code, and diagrams
-- Horizontally scrollable wide tables and code blocks
-- Responsive SVG diagrams
-- Print styles that remove decorative chrome and avoid clipped content
-
-The initial product does not include a table of contents, navigation sidebar, toolbar, settings UI, or custom theme system.
-
-### Images and assets
-
-- Relative local image paths are resolved against the Markdown file's directory for file input and the current working directory for stdin input.
-- Local images are read during generation and embedded as typed base64 data URIs.
-- Missing local images produce a source-aware generation error.
-- Path resolution is canonicalized and tested for traversal and symlink edge cases. The implementation opens the canonical target without following a final symlink and compares file metadata before and after reading; ordinary local-filesystem TOCTOU risk cannot be eliminated completely.
-- Remote images remain remote and are never fetched implicitly.
-- Product CSS is compiled into the executable and inlined into each generated document.
-
-## Security model
-
-The source file may contain content that should not become executable merely because it was opened locally.
-
-Initial policy:
-
-- Raw HTML from Markdown is escaped or removed rather than passed through verbatim.
-- Dangerous link and image protocols such as `javascript:` are rejected.
-- Generated text and attributes are HTML/XML escaped.
-- Mermaid source is rendered by the trusted static renderer, whose SVG text output is escaped.
-- Generated SVG must not contain scripts, event-handler attributes, external resource loads, or unsafe links.
-- No `eval`, dynamic remote modules, CDN scripts, or runtime Markdown rendering are used.
-- File reads are limited to the requested Markdown file, when present, and explicitly referenced local assets.
-
-Security transforms run before trusted code-highlighting and diagram-generation plugins so generated markup is not accidentally stripped while authored unsafe markup is not accidentally trusted.
-
-Every security defect receives a permanent regression test.
-
-## Processing pipeline
-
-```text
-CLI arguments and stdin state
-  → select file input or non-interactive stdin
-  → canonicalize the source path or capture stdin context
-  → read UTF-8 Markdown
-  → Sätteri parse to MDAST and convert to HAST
-  → escape authored raw HTML and normalize authored links/images
-  → validate and embed contained local image assets
-  → generate heading IDs and capture document metadata
-  → render Mermaid fences to validated trusted inline SVG
-  → render remaining code fences with static Expressive Code/Shiki output
-  → render HTML fragment
-  → place fragment in the inline-styled HTML shell
-  → validate final-document invariants
-  → atomically write cached HTML file
-  → open file URL
+select file or redirected stdin
+  → read strict UTF-8 Markdown and establish a canonical asset base
+  → parse one Comrak AST and prepare links, images, title, and code locations
+  → render code with Lumis and Mermaid with the native renderer
+  → assemble one complete inline-CSS HTML5 document
+  → atomically persist the deterministic cache file
+  → print its absolute path
+  → open its encoded file:// URL with the default browser
   → exit
 ```
 
-Plugin order is part of the output and security contract and must be covered by integration tests.
+All meaningful rendering finishes before persistence and browser opening. Failures before persistence print no output path. A browser-opening failure happens after the valid path has been printed and retained.
 
-## Technology stack and decisions
+## CLI and source contract
 
-### Bun
+- Accept `-h` or `--help`, exactly one case-insensitive `.md` path, or redirected stdin.
+- Reject extra arguments, interactive stdin without a file, empty stdin, and invalid UTF-8.
+- A file argument takes precedence over redirected stdin.
+- Canonicalize file input and require a regular file.
+- Resolve file assets from the canonical source directory and stdin assets from the current directory.
+- Use first H1, then file stem, then `Markdown document` as title precedence.
 
-Bun is used for:
+## Static document contract
 
-- TypeScript execution during development
-- Package management and lockfile
-- File I/O
-- Hashing and temporary-directory handling
-- Process spawning for the default browser
-- Test runner and assertions
-- Bundling and standalone executable compilation
+The output is a complete HTML5 document with one semantic `<main>`, inline product CSS, responsive/light/dark/print rules, and a restrictive content security policy. It supports GFM tables, task lists, strikethrough, autolinks, footnotes, deterministic heading IDs, and hidden leading YAML or TOML frontmatter.
 
-Source development and validation use the pinned Bun runtime. The build embeds the selected Sätteri native addon in a Bun standalone executable; end users do not need Bun or Node.
+Authored raw HTML is escaped. Safe fragment, contained local-file, HTTP(S), mail, and telephone links are retained; unsafe protocols and escaping local links fail. The browser receives no product script, remote module, stylesheet, font, or rendering dependency.
 
-### Sätteri instead of `Bun.markdown`
+### Code
 
-Sätteri is used because generation-time features need an AST pipeline. Its MDAST/HAST visitors provide clean, testable transforms for code blocks, Mermaid, images, heading IDs, safety rules, and future static features.
+Code highlighting is static Lumis output using GitHub light and dark themes. Lumis defaults are disabled and only these language features are compiled:
 
-`Bun.markdown` remains an excellent simple HTML renderer, but using it here would require fragile HTML post-processing or a complete custom renderer. It is not the initial parser.
+- Bash, C, C++, C#, CSS, Go, HTML, Java, JavaScript, JSON
+- Python, Ruby, Rust, SQL, TOML, TSX, TypeScript, YAML
 
-Sätteri is pre-1.0, so its exact version is pinned. Upgrades require a changelog review and full regression suite.
+Known aliases map explicitly to those languages. Unknown and unlabeled fences are escaped plaintext; content is never auto-detected.
 
-### Sätteri native binding packaging
+Fence metadata is limited to `title="..."`, marked ranges `{1,3-5}`, and inserted ranges `ins={2,6-8}`. Ranges contain comma-separated positive line numbers or inclusive `N-M` pairs. Duplicate, malformed, zero, reversed, or additional metadata fails with source location. This boundary is intentional and should not grow without a demonstrated document need.
 
-Sätteri uses a platform-specific N-API addon. Bun's compiler does not automatically retain Sätteri's dynamically selected binding in the tested setup.
+### Mermaid
 
-Each build target therefore uses a small generated bootstrap that embeds the matching `.node` addon with Bun's file loader, sets `NAPI_RS_NATIVE_LIBRARY_PATH`, and only then dynamically imports Sätteri. No platform is a native-qualified standalone release target until its compiled executable passes `bun run test:standalone` on the matching OS, architecture, and Linux libc.
+`mermaid-rs-renderer` renders `mermaid` fences synchronously with its native capabilities. The project does not maintain a diagram-family preflight allowlist or silently fall back to another engine. Renderer errors are wrapped with the Markdown fence location. Mermaid metadata is rejected.
 
-### Expressive Code and Shiki
+Renderer-produced SVG is trusted inline output. It is not reparsed, rewritten, sanitized, or independently validated.
 
-Used for generation-time syntax highlighting and code presentation. Runtime JavaScript modules are discarded; generated token markup and styles remain.
+### Images
 
-### beautiful-mermaid
+Remote HTTP(S) image URLs pass through without generation-time fetching. Local paths have query/fragment removed, are strictly percent-decoded, and are canonicalized against the canonical source base. The canonical target must remain inside that base, be a regular file, and use PNG, JPEG, GIF, WebP, or SVG extension mapping. Bytes are embedded with padded Base64.
 
-Used for generation-time Mermaid-like SVG rendering. It is intentionally chosen over official Mermaid CLI because it requires no Puppeteer, Chromium download, DOM shim, server, or runtime JavaScript.
+The policy is intentionally containment-based: there is no file-signature sniffing, repeated metadata comparison, no-follow platform machinery, or SVG content validation. Authored SVG stays isolated as an `<img>` data URI rather than inline trusted markup. Unsafe schemes, absolute/protocol-relative paths, traversal or symlink escape, missing files, and unsupported extensions fail with source context.
 
-Its six implemented diagram families and parser tolerance are explicit product boundaries. mdr adds minimum-content and known malformed-statement gates, strips generated Google Fonts imports, and validates generated SVG, but does not claim compatibility with the complete official Mermaid grammar.
+## Persistence and browser boundary
 
-### Browser opener
+The destination shape is:
 
-A small internal adapter opens the generated file with the platform default:
-
-- macOS: `open`
-- Linux: `xdg-open`
-- Windows: PowerShell `Start-Process`
-
-Commands are spawned with argument arrays rather than interpolated shell commands. Unit tests exercise the narrow spawn boundary, while CLI and standalone tests intercept the platform executable through `PATH`.
-
-### Development tooling
-
-- Oxlint provides AST-based correctness linting for TypeScript source; it is not the type-aware gate.
-- TypeScript (`tsc --noEmit`) provides the type-aware gate.
-- Oxfmt provides deterministic project formatting.
-- All three tools are pinned exactly and run through package scripts.
-- Bun's built-in test runner remains the only test framework.
-
-## Testing strategy
-
-All automated tests use `bun test`. Tests must be fast enough for normal local development while exercising the real parser and renderers wherever practical.
-
-### Testing principles
-
-- Prefer behavior and invariant assertions over large brittle snapshots.
-- Use real Sätteri, Expressive Code, Shiki, and beautiful-mermaid in pipeline tests.
-- Mock only true system boundaries such as browser launching.
-- Keep a small number of carefully reviewed golden fixtures for representative complete documents.
-- Assert both positive behavior and meaningful absence: no Mermaid runtime, no external product assets, no unsafe protocols, no executable raw HTML.
-- Test failures and diagnostics as first-class product behavior.
-- Every fixed bug adds a regression test that would have caught it.
-- Test quality is judged by protected behavior and trust boundaries rather than a mandatory numeric coverage target.
-
-### Unit tests
-
-Focused tests cover logic with meaningful branching:
-
-- CLI argument and stdin-state validation
-- File and stdin source selection
-- Canonical input and output path calculation
-- Deterministic stdin identity calculation
-- Title selection
-- Heading slug generation and collision handling
-- URL protocol policy
-- MIME detection and data-URI generation
-- Local asset path resolution
-- HTML attribute/text escaping
-- Browser opener command selection
-- Atomic output replacement
-- Diagnostic formatting
-
-### Pipeline integration tests
-
-Fixture-based tests run the actual generation pipeline and verify:
-
-- Core CommonMark rendering
-- GFM tables, tasks, strikethrough, autolinks, and footnotes
-- Heading IDs and duplicate headings
-- Frontmatter exclusion from visible output
-- Known-language syntax highlighting
-- Unknown-language readable fallback
-- Expressive Code title and marker metadata
-- Mermaid conversion to inline SVG
-- All supported Mermaid diagram families
-- Invalid and unsupported Mermaid diagnostics
-- Local PNG, JPEG, GIF, WebP, and SVG embedding
-- Paths containing spaces and Unicode
-- Missing asset failures
-- Relative nested asset paths for file and stdin input
-- Equivalent rendering from file and stdin content
-- Light/dark CSS presence
-- Print CSS presence
-- Deterministic output for identical input
-
-### Security tests
-
-Adversarial fixtures verify that generated files do not contain executable content from:
-
-- Raw `<script>` blocks
-- Inline event handlers
-- `javascript:` and mixed-case/encoded protocol variants
-- Malicious image URLs
-- SVG/script injection through Mermaid labels
-- HTML-breaking code fence content
-- Attribute-breaking titles and alt text
-- Path traversal and symlink escapes
-- Unexpected external scripts, stylesheets, fonts, or module imports
-
-### Complete-document contract tests
-
-Representative documents are generated and checked for:
-
-- HTML5 doctype and required metadata
-- Correct title and language
-- One valid document root
-- Inline product styles
-- No mdr external assets
-- No Mermaid runtime
-- No required runtime JavaScript
-- Valid embedded image data URIs
-- Responsive diagram and table classes
-- Stable, reviewed output structure
-
-Only compact, stable portions of complete output are snapshot-tested. Volatile Shiki or SVG implementation details are checked semantically instead.
-
-### CLI integration tests
-
-Tests spawn the CLI in isolated temporary directories and assert:
-
-- Successful generation from a relative and absolute path
-- Successful generation from piped stdin
-- Usage failure for interactive stdin without a file
-- File precedence when stdin is also redirected
-- Stdin local-asset resolution against the current working directory
-- Printed output path
-- Browser-opener invocation with the generated file URL
-- Process exit codes
-- Concise stderr diagnostics
-- No output opening after generation failure
-- Existing cached output is replaced atomically
-- Paths with spaces, Unicode, and symlinks
-- No lingering process, listener, or server port
-
-### Compiled executable smoke tests
-
-The release artifact itself is tested, not just source execution:
-
-1. Build the standalone executable.
-2. Run it against a representative fixture.
-3. Verify successful Sätteri native binding startup.
-4. Verify generated GFM, highlighted code, and Mermaid SVG.
-5. Verify the browser opener was intercepted.
-6. Verify the process exits and leaves no child process or listener.
-
-The same command must pass in a matching native development or release environment before that target is described as native-qualified. Cross-compilation success alone is insufficient evidence that the embedded N-API binding loads.
-
-### Optional browser validation
-
-A small end-to-end validation may open the generated `file://` document with `Bun.WebView` where supported and assert:
-
-- The document loads without network requests for mdr assets.
-- Static SVG diagrams are present and visible.
-- Highlighted code is visible.
-- No runtime rendering is needed.
-- The layout does not overflow at representative viewport widths.
-
-This complements generation tests; it does not introduce a browser requirement for normal unit tests.
-
-## Quality gates
-
-A change is ready when:
-
-- `bun test` passes.
-- Type checking passes.
-- Formatting and linting pass.
-- Relevant source, pipeline, security, CLI, and regression tests exist.
-- The generated document contract still passes.
-- `bun run test:standalone` passes on the current native platform for release-affecting changes.
-- No server or listener has been introduced.
-- No new CLI flag, dependency, or runtime script exists without a concrete user-facing justification.
-
-## Standalone targets and qualification
-
-The build implements eight explicit target mappings:
-
-- macOS arm64 and x64
-- Linux arm64 and x64 with glibc
-- Linux arm64 and x64 with musl
-- Windows arm64 and x64
-
-These mappings describe build capability, not native release qualification. A target is native-qualified only after `bun run test:standalone` passes on that matching OS, architecture, and Linux libc. Unrun targets remain configured but unqualified. The repository intentionally contains no hosted CI configuration.
-
-## Non-goals
-
-The initial project is not:
-
-- A Markdown editor
-- A live preview server
-- A file watcher
-- A static-site generator
-- A documentation website framework
-- A multi-file navigator
-- A browser extension
-- A PDF generator
-- An MDX runtime
-- A plugin marketplace
-- A configurable theme engine
-- A complete implementation of every Mermaid diagram family
-- A wrapper around dozens of renderer flags
-
-Potential features such as KaTeX rendering, official Mermaid through `Bun.WebView`, a table of contents, or copy buttons require real user demand and high-value tests before entering scope.
-
-## Definition of done for the initial product
-
-The initial product is complete when a user can run either:
-
-```bash
-mdr ./README.md
-cat README.md | mdr
+```text
+<tmp>/mdr/<sha256-source-identity>/<portable-name>.html
 ```
 
-and receive a beautiful, safe, self-contained HTML file that:
+File identity is the canonical source path, so content changes reuse the same destination. Stdin identity is the current directory, a NUL separator, and exact Markdown bytes. File names replace control and cross-platform-forbidden characters, trim trailing dots/spaces, preserve other Unicode, and fall back to `document` for empty or reserved device stems. Stdin uses `stdin.html`.
 
-- Opens directly through `file://`.
-- Correctly renders the documented Markdown and GFM features.
-- Contains statically highlighted code.
-- Contains static SVG for every supported Mermaid fence.
-- Embeds local images.
-- Works in light, dark, responsive, and print contexts.
-- Requires no server and no rendering-time JavaScript.
-- Is generated by a standalone executable that exits immediately after opening it.
-- Is protected by comprehensive Bun unit, pipeline, security, CLI, and compiled-artifact tests.
+A named temporary sibling is created in the destination directory, receives the complete HTML bytes, and is atomically persisted over the destination. Crash-durability synchronization and backup/restore machinery are out of scope.
 
-## Key references
+The absolute destination is converted to an encoded `file://` URL and handed directly to the platform default browser. The CLI creates no HTTP listener, localhost request, child service, or long-running process.
 
-- Sätteri: https://satteri.bruits.org/docs/
-- Sätteri repository: https://github.com/bruits/satteri
-- Sätteri Expressive Code: https://satteri.bruits.org/docs/expressive-code/
-- Expressive Code: https://expressive-code.com/
-- beautiful-mermaid: https://github.com/lukilabs/beautiful-mermaid
-- Bun standalone executables: https://bun.com/docs/bundler/executables
+## Technology and dependencies
+
+The package is a Rust 2024 binary named `mdr`, pinned to Rust **1.91.0** because Lumis 0.12 requires that toolchain. Standard Cargo commands are the only build and test interface.
+
+Direct dependencies are intentionally narrow:
+
+- `comrak` — Markdown/GFM AST and HTML formatting, without default features
+- `lumis` — static multi-theme code highlighting, without defaults and with the curated languages above
+- `mermaid-rs-renderer` — synchronous native Mermaid SVG, without default features
+- `base64`, `percent-encoding`, and `url` — embedded assets and URL handling
+- `sha2` — deterministic cache identity
+- `tempfile` — sibling temporary files and atomic persistence
+- `webbrowser` — direct default-browser opening, without default features
+
+Do not add async runtimes, HTTP stacks, XML/SVG parsers, plugin frameworks, generic sanitizers, or cross-target build layers without an observed requirement and a separate design decision.
+
+## Development and validation
+
+```bash
+cargo run -- README.md
+cat README.md | cargo run --quiet
+
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+cargo build --release
+```
+
+Tests protect distinct visible contracts: source selection and errors, GFM/static shell behavior, bounded code metadata, native Mermaid success and diagnostics, image containment and embedding, deterministic atomic output, encoded file URLs, and one representative complete document. Prefer semantic assertions over renderer-owned snapshots or implementation-shape tests. Automated tests do not invoke a real browser.
+
+Release qualification additionally requires native file and stdin smoke runs outside the repository, direct `file://` browser inspection, prompt process exit, and evidence that no product server or localhost request exists.
+
+## Qualified target
+
+Only **macOS arm64** is currently native-qualified. The release executable passed both outside-repository input modes and direct local-file browser inspection on that platform. Other operating systems and architectures remain unqualified and must not be presented as supported releases solely because Cargo can compile for them.
+
+## Product principles
+
+1. Keep one obvious command and one linear synchronous flow.
+2. Finish Markdown, code, diagrams, CSS, and local assets before opening the browser.
+3. Produce deterministic, self-contained, directly loadable local HTML.
+4. Keep authored executable content inert and local image access contained.
+5. Prefer bounded behavior and semantic tests over compatibility frameworks.
+6. Add options, dependencies, and abstractions only for demonstrated user needs.

@@ -1,7 +1,5 @@
 .progress/
-node_modules/
-dist/
-scripts/.build-bootstrap.ts
-coverage/
+target/
+*.rs.bk
 *.log
 .DS_Store
