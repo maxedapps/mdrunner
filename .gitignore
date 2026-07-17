@@ -1,6 +1,7 @@
 .progress/
 node_modules/
 dist/
+scripts/.build-bootstrap.ts
 coverage/
 *.log
 .DS_Store

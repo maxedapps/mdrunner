@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "bun src/cli.ts",
     "start": "bun src/cli.ts",
+    "build": "bun scripts/build.ts",
     "test": "bun run test:source",
     "test:source": "bun test tests/unit tests/integration tests/security tests/cli",
     "test:unit": "bun test tests/unit",
@@ -14,7 +15,7 @@
     "test:cli": "bun test tests/cli",
     "test:coverage": "bun test --coverage tests/unit tests/integration tests/security tests/cli",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src tests",
+    "lint": "oxlint src scripts tests",
     "format": "oxfmt --write . '!**/.plans/**' '!**/.subagents/**'",
     "format:check": "oxfmt --check . '!**/.plans/**' '!**/.subagents/**'",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test:source"
