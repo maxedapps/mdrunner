@@ -122,20 +122,14 @@ impl SyntaxHighlighterAdapter for PlaintextRenderer {
         _lang: Option<&str>,
         code: &str,
     ) -> fmt::Result {
-        for (index, line) in code.split_inclusive('\n').enumerate() {
-            let text = line.strip_suffix('\n').unwrap_or(line);
+        let code = strip_fence_line_ending(code);
+        for (index, line) in code.split('\n').enumerate() {
             write!(
                 output,
                 "<span class=\"mdr-code-line\" data-line=\"{}\">{}</span>",
                 index + 1,
-                escape_html(text)
+                escape_html(line)
             )?;
-            if line.ends_with('\n') {
-                output.write_char('\n')?;
-            }
-        }
-        if code.is_empty() {
-            output.write_str("<span class=\"mdr-code-line\" data-line=\"1\"></span>")?;
         }
         Ok(())
     }
@@ -258,7 +252,14 @@ fn parse_line(value: &str) -> Result<usize, &'static str> {
     Ok(line)
 }
 
+fn strip_fence_line_ending(code: &str) -> &str {
+    code.strip_suffix('\n')
+        .map(|code| code.strip_suffix('\r').unwrap_or(code))
+        .unwrap_or(code)
+}
+
 fn render_code(lang: &str, code: &str, metadata: &FenceMetadata) -> Result<String, String> {
+    let code = strip_fence_line_ending(code);
     let language = language_for_label(lang).unwrap_or(Language::PlainText);
     let line_count = code.lines().count().max(1);
     let mut theme_map = HashMap::new();
@@ -436,6 +437,8 @@ mod tests {
         assert!(html.contains("class=\"l-line mark"));
         assert!(html.contains("class=\"l-line ins"));
         assert!(html.contains("data-line=\"3\""));
+        assert!(!html.contains("data-line=\"4\""));
+        assert_eq!(html.matches("class=\"l-line").count(), 3);
         assert!(!html.contains("<script"));
         assert!(!html.contains("<button"));
 
@@ -468,6 +471,30 @@ mod tests {
         .unwrap();
         assert!(html.contains("data-language=\"strange&lt;&amp;quot;\""));
         assert!(html.contains("alpha &lt; beta &amp;&amp; gamma &gt; delta"));
+        assert!(!html.contains("data-line=\"2\""));
         assert!(!html.contains("<button"));
+    }
+
+    #[test]
+    fn removes_only_the_structural_fence_line_ending() {
+        assert_eq!(strip_fence_line_ending("one\n"), "one");
+        assert_eq!(strip_fence_line_ending("one\r\n"), "one");
+        assert_eq!(strip_fence_line_ending("one\n\n"), "one\n");
+
+        let renderer = PlaintextRenderer;
+        let mut ordinary = String::new();
+        renderer
+            .write_highlighted(&mut ordinary, None, "one\ntwo\n")
+            .unwrap();
+        assert!(ordinary.contains("data-line=\"2\""));
+        assert!(!ordinary.contains("data-line=\"3\""));
+        assert!(!ordinary.contains("</span>\n<span"));
+
+        let mut authored_blank = String::new();
+        renderer
+            .write_highlighted(&mut authored_blank, None, "one\n\n")
+            .unwrap();
+        assert!(authored_blank.contains("data-line=\"2\"></span>"));
+        assert!(!authored_blank.contains("data-line=\"3\""));
     }
 }
