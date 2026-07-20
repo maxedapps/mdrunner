@@ -9,7 +9,7 @@ mdr ./README.md
 cat README.md | mdr
 ```
 
-The product deliberately has no subcommands, server mode, watcher, daemon, renderer selector, theme configuration, runtime JavaScript, or custom release orchestration.
+The product deliberately has no subcommands, server mode, watcher, daemon, renderer selector, theme configuration, or runtime JavaScript. Release automation is repository infrastructure, not product runtime behavior.
 
 ## User flow
 
@@ -29,7 +29,8 @@ All meaningful rendering finishes before persistence and browser opening. Failur
 
 ## CLI and source contract
 
-- Accept `-h` or `--help`, exactly one case-insensitive `.md` path, or redirected stdin.
+- Accept `-h` or `--help`, `-V` or `--version`, exactly one case-insensitive `.md` path, or redirected stdin.
+- `-V` and `--version` print `mdr <Cargo package version>` and exit successfully before source, render, output, or browser work.
 - Reject extra arguments, interactive stdin without a file, empty stdin, and invalid UTF-8.
 - A file argument takes precedence over redirected stdin.
 - Canonicalize file input and require a regular file.
@@ -81,7 +82,7 @@ The absolute destination is converted to an encoded `file://` URL and handed dir
 
 ## Technology and dependencies
 
-The package is a Rust 2024 binary named `mdr`, pinned to Rust **1.91.0** because Lumis 0.12 requires that toolchain. Standard Cargo commands are the only build and test interface.
+The package is a Rust 2024 binary named `mdr`, pinned to Rust **1.91.0** because Lumis 0.12 requires that toolchain. Standard Cargo commands remain the local development, build, and test interface. The sole release-orchestration exception is the repository's pinned cargo-dist configuration and generated GitHub Actions release workflow.
 
 Direct dependencies are intentionally narrow:
 
@@ -103,17 +104,32 @@ cat README.md | cargo run --quiet
 
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
-cargo test
-cargo build --release
+cargo test --locked
+cargo build --release --locked
 ```
 
 Tests protect distinct visible contracts: source selection and errors, GFM/static shell behavior, bounded code metadata, native Mermaid success and diagnostics, image containment and embedding, deterministic atomic output, encoded file URLs, and one representative complete document. Prefer semantic assertions over renderer-owned snapshots or implementation-shape tests. Automated tests do not invoke a real browser.
 
-Release qualification additionally requires native file and stdin smoke runs outside the repository, direct `file://` browser inspection, prompt process exit, and evidence that no product server or localhost request exists.
+Release qualification additionally requires native file and stdin smoke runs outside the repository, direct `file://` browser inspection, prompt process exit, and evidence that no product server or localhost request exists. Maintainers follow [RELEASING.md](RELEASING.md) for versioning and publication.
 
-## Qualified target
+## CI and release automation
 
-Only **macOS arm64** is currently native-qualified. The release executable passed both outside-repository input modes and direct local-file browser inspection on that platform. Other operating systems and architectures remain unqualified and must not be presented as supported releases solely because Cargo can compile for them.
+`.github/workflows/ci.yml` is repository-owned. It runs formatting and clippy on Linux, then locked tests, a release build, and help/version smoke checks on native Linux, macOS, and Windows runners. It never opens a browser or publishes a release.
+
+`dist-workspace.toml` is the repository-owned release contract. It pins cargo-dist 0.32.0, explicitly opts the non-crates.io `mdr` package into distribution, and configures these archive targets:
+
+- `aarch64-apple-darwin`
+- `x86_64-apple-darwin`
+- `x86_64-unknown-linux-gnu`
+- `x86_64-pc-windows-msvc`
+
+It also configures shell and PowerShell installers, SHA-256 checksums, GitHub hosting, and host-phase GitHub attestations. `.github/workflows/release.yml` is generated exclusively by `dist init` and must not be hand-edited. Its normal pull-request mode is planning only; release publication is triggered only by a version tag. GitHub Actions/cargo-dist is the deliberate hosted-release exception to the otherwise Cargo-only development interface.
+
+## Target evidence
+
+**Build-tested** means native CI and cargo-dist successfully built, packaged, and checksummed the configured artifact. **Native-qualified** additionally requires the desktop/browser smoke gate above on matching hardware. Compilation or packaging alone is not qualification.
+
+Only **Apple Silicon macOS** is currently native-qualified from the existing unchanged runtime boundary. Its current-host cargo-dist archive has also been locally built and inspected. Intel macOS, x64 GNU/Linux, and x64 Windows are configured but remain unqualified; they must not be called build-tested until the setup pull request succeeds for their hosted jobs. Linux compatibility must remain unspecified until the hosted linkage report establishes the glibc baseline.
 
 ## Product principles
 
