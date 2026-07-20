@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-20
+
 ### Fixed
 
 - Report unknown options and malformed or unsupported explicit URLs during argument selection instead of producing cwd-prefixed file errors.
+
+All four archives are build-tested by the release workflow. No v0.2.1 archive is newly native-qualified; the v0.2.0 Apple Silicon macOS qualification remains historical evidence. The Linux artifact retains a glibc 2.35 build baseline. The macOS and Windows artifacts are unsigned and may trigger platform trust prompts.
 
 ## [0.2.0] - 2026-07-20
 
@@ -38,6 +42,7 @@ All four archives are build-tested by the release workflow. Only Apple Silicon m
 
 All four archives are build-tested. Only Apple Silicon macOS is native-qualified for the full file, stdin, and default-browser flow. The Linux artifact has a glibc 2.35 build baseline. The macOS and Windows artifacts are unsigned and may trigger platform trust prompts.
 
-[Unreleased]: https://github.com/maxedapps/mdr/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/maxedapps/mdr/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/maxedapps/mdr/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/maxedapps/mdr/releases/tag/v0.2.0
 [0.1.0]: https://github.com/maxedapps/mdr/releases/tag/v0.1.0
