@@ -4,11 +4,9 @@
 
 ## Install
 
-The v0.1.0 downloads and installer commands below will work **after v0.1.0 is published**. The release is not hosted yet. Prebuilt archives and installers do not require Rust.
+Prebuilt v0.1.0 archives and installers do not require Rust.
 
 ### macOS or Linux
-
-Once v0.1.0 is published:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/maxedapps/mdr/releases/download/v0.1.0/mdr-installer.sh | sh
@@ -18,7 +16,7 @@ A complete render requires a graphical environment and a configured default brow
 
 ### Windows
 
-Once v0.1.0 is published, run in PowerShell:
+Run in PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/maxedapps/mdr/releases/download/v0.1.0/mdr-installer.ps1 | iex"
@@ -28,7 +26,7 @@ A complete render requires a graphical environment and a configured default brow
 
 ### Manual download and SHA-256 check
 
-After publication, download the archive for your platform and its matching `.sha256` file from the [v0.1.0 release](https://github.com/maxedapps/mdr/releases/tag/v0.1.0). Verify the archive before extracting it, then place `mdr` (`mdr.exe` on Windows) somewhere on your `PATH`.
+Download the archive for your platform and its matching `.sha256` file from the [v0.1.0 release](https://github.com/maxedapps/mdr/releases/tag/v0.1.0). Verify the archive before extracting it, then place `mdr` (`mdr.exe` on Windows) somewhere on your `PATH`.
 
 On macOS, for example:
 
@@ -49,7 +47,7 @@ Get-FileHash .\mdr-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 Get-Content .\mdr-x86_64-pc-windows-msvc.zip.sha256
 ```
 
-The artifacts are unsigned: macOS artifacts are not notarized, and Windows artifacts do not use Authenticode. Platform trust prompts may appear. SHA-256 checks detect corruption or modification but do not establish publisher identity. GitHub attestations will be available after hosted publication; attestations are not code signing.
+The artifacts are unsigned: macOS artifacts are not notarized, and Windows artifacts do not use Authenticode. Platform trust prompts may appear. SHA-256 checks detect corruption or modification but do not establish publisher identity. GitHub attestations provide hosted build provenance; attestations are not code signing.
 
 ## Use
 
@@ -108,16 +106,16 @@ Image type is determined from the extension; file signatures and SVG contents ar
 
 ## Platform downloads and status
 
-Release publication, hosted build testing, and native qualification are separate. v0.1.0 is not published yet, so none of these archives is currently hosted.
+Release publication, hosted build testing, and native qualification are separate.
 
-| Platform | Planned v0.1.0 archive | Availability | Hosted build-tested | Native-qualified |
-| --- | --- | --- | --- | --- |
-| Apple Silicon macOS | `mdr-aarch64-apple-darwin.tar.xz` | After v0.1.0 publication | Yes | Yes, from existing native file/stdin and browser checks |
-| Intel macOS | `mdr-x86_64-apple-darwin.tar.xz` | After v0.1.0 publication | Yes | Not yet |
-| x86-64 Linux (GNU) | `mdr-x86_64-unknown-linux-gnu.tar.xz` | After v0.1.0 publication | Yes; glibc 2.35 build baseline | Not yet |
-| x86-64 Windows (MSVC) | `mdr-x86_64-pc-windows-msvc.zip` | After v0.1.0 publication | Yes | Not yet |
+| Platform | v0.1.0 archive | Hosted build-tested | Native-qualified |
+| --- | --- | --- | --- |
+| Apple Silicon macOS | `mdr-aarch64-apple-darwin.tar.xz` | Yes | Yes, from existing native file/stdin and browser checks |
+| Intel macOS | `mdr-x86_64-apple-darwin.tar.xz` | Yes | Not yet |
+| x86-64 Linux (GNU) | `mdr-x86_64-unknown-linux-gnu.tar.xz` | Yes; glibc 2.35 build baseline | Not yet |
+| x86-64 Windows (MSVC) | `mdr-x86_64-pc-windows-msvc.zip` | Yes | Not yet |
 
-Each archive will have a matching `.sha256` sidecar. Hosted build testing confirms that all four archives compile and package; it does not qualify desktop/browser behavior. The Linux artifact is evidenced only against the glibc 2.35 build environment, so compatibility with older glibc versions is not claimed.
+Each archive has a matching `.sha256` sidecar. Hosted build testing confirms that all four archives compile and package; it does not qualify desktop/browser behavior. The Linux artifact is evidenced only against the glibc 2.35 build environment, so compatibility with older glibc versions is not claimed.
 
 ## Project information
 
