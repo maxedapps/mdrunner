@@ -171,13 +171,16 @@ fn rewrite_link(raw: &str, asset_base: &Path) -> Result<String, AppError> {
 
     let base_url = Url::from_directory_path(asset_base)
         .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
+    let containment_base = base_url
+        .to_file_path()
+        .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
     let url = base_url
         .join(value)
         .map_err(|_| AppError::new("Unsafe or invalid link URL."))?;
     let target = url
         .to_file_path()
         .map_err(|()| AppError::new("Unsafe or invalid link URL."))?;
-    if !target.starts_with(asset_base) {
+    if !target.starts_with(&containment_base) {
         return Err(AppError::new("Unsafe or invalid link URL."));
     }
     Ok(url.to_string())
@@ -220,18 +223,23 @@ mod tests {
 
     use super::*;
 
+    fn test_workspace() -> PathBuf {
+        std::env::temp_dir().join("mdr-tests")
+    }
+
     fn file_source(markdown: &str, name: &str) -> MarkdownSource {
+        let asset_base = test_workspace().join("docs");
         MarkdownSource::File {
             markdown: markdown.to_owned(),
-            canonical_path: PathBuf::from("/workspace/docs").join(name),
-            asset_base: PathBuf::from("/workspace/docs"),
+            canonical_path: asset_base.join(name),
+            asset_base,
         }
     }
 
     fn stdin_source(markdown: &str) -> MarkdownSource {
         MarkdownSource::Stdin {
             markdown: markdown.to_owned(),
-            cwd: PathBuf::from("/workspace"),
+            cwd: test_workspace(),
         }
     }
 
@@ -282,14 +290,23 @@ mod tests {
 
     #[test]
     fn authored_html_is_inert_and_links_are_resolved_safely() {
-        let html = render_document(&file_source(
-            "<script>alert(1)</script>\n\n[local](<guide one.md#part>) [remote](https://example.com/a?q=1)\n",
-            "Links.md",
-        ))
-        .unwrap();
+        let directory = tempdir().unwrap();
+        let docs = directory.path().join("docs");
+        fs::create_dir(&docs).unwrap();
+        let asset_base = fs::canonicalize(docs).unwrap();
+        let source = MarkdownSource::File {
+            markdown: "<script>alert(1)</script>\n\n[local](<guide one.md#part>) [remote](https://example.com/a?q=1)\n".to_owned(),
+            canonical_path: asset_base.join("Links.md"),
+            asset_base,
+        };
+        let mut expected_local = Url::from_file_path(source.asset_base().join("guide one.md"))
+            .expect("the canonical test directory has a file URL");
+        expected_local.set_fragment(Some("part"));
+
+        let html = render_document(&source).unwrap();
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-        assert!(html.contains("file:///workspace/docs/guide%20one.md#part"));
+        assert!(html.contains(expected_local.as_str()));
         assert!(html.contains("https://example.com/a?q=1"));
 
         assert!(render_document(&file_source("[bad](../secret.md)\n", "Links.md")).is_err());
@@ -343,8 +360,9 @@ mod tests {
             "# Before\n\nParagraph\n\n```ts del={2}\nconst value = 1;\n```\n",
             "Code.md",
         );
+        let expected_prefix = format!("{}:5:1:", source.label());
         let error = render_document(&source).unwrap_err().to_string();
-        assert!(error.starts_with("/workspace/docs/Code.md:5:1:"), "{error}");
+        assert!(error.starts_with(&expected_prefix), "{error}");
         assert!(error.contains("Unsupported code fence metadata"));
     }
 }

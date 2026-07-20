@@ -42,6 +42,7 @@ impl MarkdownSource {
 #[derive(Debug)]
 pub(crate) enum SourceSelection {
     Help,
+    Version,
     Render(MarkdownSource),
 }
 
@@ -51,8 +52,12 @@ pub(crate) fn read_markdown_source(
     stdin_is_terminal: bool,
     cwd: &Path,
 ) -> Result<SourceSelection, AppError> {
-    if args.len() == 1 && matches!(args[0].as_str(), "-h" | "--help") {
-        return Ok(SourceSelection::Help);
+    if args.len() == 1 {
+        match args[0].as_str() {
+            "-h" | "--help" => return Ok(SourceSelection::Help),
+            "-V" | "--version" => return Ok(SourceSelection::Version),
+            _ => {}
+        }
     }
     if args.len() > 1 {
         return Err(AppError::new(
@@ -178,6 +183,35 @@ mod tests {
                 .to_string(),
             "Expected one .md file or piped Markdown; use --help for usage."
         );
+    }
+
+    #[test]
+    fn version_flags_are_exact_and_do_not_read_stdin() {
+        struct Unreadable;
+
+        impl Read for Unreadable {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                panic!("version selection must not read stdin")
+            }
+        }
+
+        let cwd = Path::new("/unused");
+        for flag in ["-V", "--version"] {
+            let args = vec![flag.to_owned()];
+            assert!(matches!(
+                read_markdown_source(&args, &mut Unreadable, false, cwd),
+                Ok(SourceSelection::Version)
+            ));
+        }
+
+        for args in [["--version", "extra.md"], ["-V", "extra.md"]] {
+            assert_eq!(
+                select(&args, b"# ignored\n", false, cwd)
+                    .unwrap_err()
+                    .to_string(),
+                "Expected one .md file or piped Markdown; use --help for usage."
+            );
+        }
     }
 
     #[test]

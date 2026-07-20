@@ -64,9 +64,16 @@ pub fn run() -> Result<(), AppError> {
     let selection =
         source::read_markdown_source(&args, &mut stdin.lock(), stdin_is_terminal, &cwd)?;
 
-    let SourceSelection::Render(source) = selection else {
-        println!("{USAGE_TEXT}");
-        return Ok(());
+    let source = match selection {
+        SourceSelection::Help => {
+            println!("{USAGE_TEXT}");
+            return Ok(());
+        }
+        SourceSelection::Version => {
+            println!("mdr {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        SourceSelection::Render(source) => source,
     };
 
     let html = render::render_document(&source)?;

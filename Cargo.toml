@@ -1,10 +1,17 @@
 [package]
 name = "mdr"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.91"
 description = "Render Markdown as self-contained HTML and open it in the default browser"
+repository = "https://github.com/maxedapps/mdr"
+homepage = "https://github.com/maxedapps/mdr"
+readme = "README.md"
+license = "MIT"
 publish = false
+
+[package.metadata.dist]
+dist = true
 
 [dependencies]
 base64 = "0.22.1"
@@ -35,3 +42,8 @@ sha2 = "0.10.9"
 tempfile = "3.23.0"
 url = "2.5.7"
 webbrowser = { version = "1.0.6", default-features = false }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
