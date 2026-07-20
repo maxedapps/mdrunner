@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Report unknown options and malformed or unsupported explicit URLs during argument selection instead of producing cwd-prefixed file errors.
+
 ## [0.2.0] - 2026-07-20
 
 ### Added

@@ -56,7 +56,10 @@ Render one local Markdown or MDX file:
 ```sh
 mdr notes.md
 mdr component.mdx
+mdr -- -notes.md
 ```
+
+Use `-- -notes.md` or `./-notes.md` for a dash-prefixed filename.
 
 Fetch Markdown over HTTPS, including canonical GitHub blob links:
 
@@ -73,7 +76,7 @@ cat notes.md | mdr
 
 Running `mdr` with no argument and interactive stdin reads the system clipboard. A non-empty native file list is authoritative and must contain exactly one regular `.md` or `.mdx` file. Otherwise, single-line clipboard text ending in `.md`/`.mdx` or containing a `file://` URL opens that path; all other non-empty text is rendered exactly as copied. HTTP(S) text copied to the clipboard remains Markdown text and is not fetched.
 
-Precedence is exact help/version, one file or absolute HTTP(S) URL argument, redirected stdin, then terminal clipboard. File extensions are case-insensitive. Every source is strict UTF-8 and limited to 10 MiB; exactly 10 MiB is accepted. Local resources resolve from the canonical file directory, or from the current directory for stdin and clipboard text.
+Precedence is exact help/version, one file or absolute HTTP(S) URL argument, redirected stdin, then terminal clipboard. Unknown options, malformed HTTP(S) URLs, and unsupported explicit `scheme://` URLs fail before file handling. Schemeless values such as `www.example.com/readme.md` remain local path candidates. File extensions are case-insensitive. Every source is strict UTF-8 and limited to 10 MiB; exactly 10 MiB is accepted. Local resources resolve from the canonical file directory, or from the current directory for stdin and clipboard text.
 
 `.mdx` is treated as inert Markdown text. Imports, exports, JSX, expressions, event handlers, and scripts are never executed or processed as components.
 

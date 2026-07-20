@@ -32,8 +32,8 @@ All meaningful rendering finishes before persistence and browser opening. Failur
 
 ## CLI and source contract
 
-- Accept exact `-h`/`--help`, `-V`/`--version`, one case-insensitive `.md`/`.mdx` path, one absolute host-bearing HTTP(S) URL, redirected stdin, or terminal clipboard.
-- Selection is pure and ordered: help/version, argument, redirected stdin, clipboard. Help/version exits before cwd, clipboard, network, render, output, or browser work.
+- Accept exact `-h`/`--help`, `-V`/`--version`, one case-insensitive `.md`/`.mdx` path, one absolute host-bearing HTTP(S) URL, redirected stdin, or terminal clipboard. Use `-- -notes.md` or `./-notes.md` for a dash-prefixed filename.
+- Selection is pure and ordered: help/version, option termination, argument validation, redirected stdin, clipboard. Unknown options, malformed explicit HTTP(S) URLs, and unsupported explicit `scheme://` URLs fail before cwd, file handling, clipboard, network, render, output, or browser work. Schemeless values such as `www.example.com/readme.md` remain local path candidates.
 - Canonicalize local files and require a regular file. Native clipboard file lists are authoritative and must contain exactly one supported file; only absent/empty lists fall through to text.
 - Classify trimmed single-line clipboard `.md`/`.mdx` paths and `file://` URLs through the shared file loader. Preserve all other non-empty clipboard text exactly and never auto-fetch copied HTTP(S) text.
 - Stream file, stdin, clipboard-selected-file, and decoded HTTP bodies through one 10 MiB + 1 boundary. Apply the same byte limit to materialized clipboard text. Require strict UTF-8; remote content must also be non-whitespace.

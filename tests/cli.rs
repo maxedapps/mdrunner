@@ -90,12 +90,53 @@ fn redirected_stdin_errors_and_argument_precedence_are_exact() {
 }
 
 #[test]
-fn version_with_an_extra_argument_is_rejected() {
-    let output = run_mdr(&["--version", "extra.md"]);
-    assert_eq!(output.status.code(), Some(1));
-    assert_eq!(output.stdout, b"");
-    assert_eq!(
-        output.stderr,
-        b"Expected at most one .md/.mdx path or HTTP(S) URL; use --help for usage.\n"
-    );
+fn argument_selection_errors_are_exact_and_early() {
+    let cases: &[(&[&str], &str)] = &[
+        (
+            &["-x"],
+            "Unknown option '-x'. Use 'mdr --help' for usage.\n",
+        ),
+        (
+            &["--versin"],
+            "Unknown option '--versin'. Use 'mdr --help' for usage.\n",
+        ),
+        (
+            &["--versin", "extra.md"],
+            "Unknown option '--versin'. Use 'mdr --help' for usage.\n",
+        ),
+        (&["https://"], "Invalid HTTP(S) URL.\n"),
+        (&["HTTP://"], "Invalid HTTP(S) URL.\n"),
+        (
+            &["ftp://example.com/readme.md"],
+            "Unsupported URL scheme 'ftp'; only HTTP(S) URLs are supported.\n",
+        ),
+        (
+            &["file:///tmp/readme.md"],
+            "Unsupported URL scheme 'file'; only HTTP(S) URLs are supported.\n",
+        ),
+    ];
+
+    for (args, expected_stderr) in cases {
+        let output = run_mdr(args);
+        assert_eq!(output.status.code(), Some(1), "args: {args:?}");
+        assert_eq!(output.stdout, b"", "args: {args:?}");
+        assert_eq!(
+            String::from_utf8(output.stderr).unwrap(),
+            *expected_stderr,
+            "args: {args:?}"
+        );
+    }
+}
+
+#[test]
+fn extra_arguments_keep_the_exact_arity_error() {
+    for args in [&["--version", "extra.md"][..], &["one.md", "two.md"][..]] {
+        let output = run_mdr(args);
+        assert_eq!(output.status.code(), Some(1));
+        assert_eq!(output.stdout, b"");
+        assert_eq!(
+            output.stderr,
+            b"Expected at most one .md/.mdx path or HTTP(S) URL; use --help for usage.\n"
+        );
+    }
 }
