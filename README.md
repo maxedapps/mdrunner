@@ -1,6 +1,6 @@
 # mdr
 
-`mdr` turns one Markdown document into polished, self-contained static HTML, opens it in your default browser with a `file://` URL, and exits. It accepts local files, redirected input, clipboard content, and HTTP(S) documents without running a server.
+`mdr` turns one Markdown document into polished, self-contained static HTML, optionally opens it in your default browser with a `file://` URL, and exits. It accepts local files, redirected input, clipboard content, and HTTP(S) documents without running a server.
 
 ## Install
 
@@ -12,7 +12,7 @@ Prebuilt v0.2.1 archives and installers do not require Rust.
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/maxedapps/mdr/releases/download/v0.2.1/mdr-installer.sh | sh
 ```
 
-A complete render requires a graphical environment and a configured default browser. On Linux, opening the result also depends on an available desktop browser opener.
+Opening the result requires a graphical environment and a configured default browser. On Linux, it also depends on an available desktop browser opener. Rendering with `--no-open` does not require a browser.
 
 ### Windows
 
@@ -22,7 +22,7 @@ Run in PowerShell:
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/maxedapps/mdr/releases/download/v0.2.1/mdr-installer.ps1 | iex"
 ```
 
-A complete render requires a graphical environment and a configured default browser.
+Opening the result requires a graphical environment and a configured default browser. Rendering with `--no-open` does not require a browser.
 
 ### Manual download and SHA-256 check
 
@@ -74,9 +74,20 @@ Or redirect non-empty Markdown through standard input:
 cat notes.md | mdr
 ```
 
+Generate the default deterministic output without opening a browser, write to an exact custom path, or combine both options:
+
+```sh
+mdr --no-open notes.md
+mdr --out ./public/notes.html notes.md
+mdr --no-open --out ./public/notes.html notes.md
+cat notes.md | mdr --no-open --out ./public/notes.html
+```
+
+Options may appear before or after the single source argument. `--out` accepts an exact file path, not a directory; it does not add an extension. Relative output paths resolve from the current directory, missing parent directories are created, and an existing destination is atomically replaced. Use `./-page.html` for a dash-prefixed output name.
+
 Running `mdr` with no argument and interactive stdin reads the system clipboard. A non-empty native file list is authoritative and must contain exactly one regular `.md` or `.mdx` file. Otherwise, single-line clipboard text ending in `.md`/`.mdx` or containing a `file://` URL opens that path; all other non-empty text is rendered exactly as copied. HTTP(S) text copied to the clipboard remains Markdown text and is not fetched.
 
-Precedence is exact help/version, one file or absolute HTTP(S) URL argument, redirected stdin, then terminal clipboard. Unknown options, malformed HTTP(S) URLs, and unsupported explicit `scheme://` URLs fail before file handling. Schemeless values such as `www.example.com/readme.md` remain local path candidates. File extensions are case-insensitive. Every source is strict UTF-8 and limited to 10 MiB; exactly 10 MiB is accepted. Local resources resolve from the canonical file directory, or from the current directory for stdin and clipboard text.
+Precedence is exact help/version, options and one file or absolute HTTP(S) URL argument, redirected stdin, then terminal clipboard. `--` ends option parsing. Unknown or repeated options, missing option values, malformed HTTP(S) URLs, and unsupported explicit `scheme://` URLs fail before cwd or source handling. Schemeless values such as `www.example.com/readme.md` remain local path candidates. File extensions are case-insensitive. Every source is strict UTF-8 and limited to 10 MiB; exactly 10 MiB is accepted. Local resources resolve from the canonical file directory, or from the current directory for stdin and clipboard text.
 
 `.mdx` is treated as inert Markdown text. Imports, exports, JSX, expressions, event handlers, and scripts are never executed or processed as components.
 
@@ -87,9 +98,11 @@ mdr --help
 mdr --version
 ```
 
+Help and version flags must be used alone.
+
 ## Output, rendering, and limitations
 
-The output location is deterministic:
+Without `--out`, the output location is deterministic:
 
 ```text
 <temporary-directory>/mdr/<sha256-source-identity>/<portable-source-name>.html
@@ -97,7 +110,16 @@ The output location is deterministic:
 
 Direct and clipboard-selected files use their canonical path as identity. Stdin identity uses the current directory and exact content; clipboard text has a separate identity using its current directory and exact content. Remote identity uses the original URL without its fragment but retains query and credentials in the digest. Outputs use portable source-derived names such as `stdin.html`, `clipboard.html`, or `CHANGELOG.html`. URL credentials are removed from diagnostics, titles, and HTML.
 
-`mdr` finishes and atomically persists the HTML, prints its absolute path, opens that exact file in the default browser, and exits. Source, fetch, and render errors occur before persistence or browser opening. If browser opening fails, the printed path and completed file remain available for manual opening.
+With `--out <path>`, `mdr` writes only the exact resolved destination and does not also create the deterministic cache file. In both modes, it creates missing parent directories, writes a complete temporary sibling, atomically replaces the destination, and prints the resulting absolute path. Source, fetch, render, and persistence errors occur before the path is printed.
+
+| Options | Output | Browser |
+| --- | --- | --- |
+| none | Deterministic temporary cache | Opens |
+| `--no-open` | Deterministic temporary cache | Does not open |
+| `--out <path>` | Exact custom file | Opens |
+| `--no-open --out <path>` | Exact custom file | Does not open |
+
+The browser receives exactly the printed path. If browser opening fails, the completed file remains available for manual opening.
 
 Generated pages support:
 

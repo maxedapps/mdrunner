@@ -19,13 +19,6 @@ pub(crate) enum SourceRequest {
     Remote(Url),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SourceSelection {
-    Help,
-    Version,
-    Request(SourceRequest),
-}
-
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResourceContext<'a> {
     Local(&'a Path),
@@ -125,60 +118,16 @@ impl MarkdownSource {
     }
 }
 
-pub(crate) fn select_source_request(
-    args: &[String],
+pub(crate) fn select_source(
+    argument: Option<&str>,
     stdin_is_terminal: bool,
-) -> Result<SourceSelection, AppError> {
-    const ARITY_ERROR: &str =
-        "Expected at most one .md/.mdx path or HTTP(S) URL; use --help for usage.";
-
-    if let Some(argument) = args.first() {
-        match argument.as_str() {
-            "-h" | "--help" => {
-                return if args.len() == 1 {
-                    Ok(SourceSelection::Help)
-                } else {
-                    Err(AppError::new(ARITY_ERROR))
-                };
-            }
-            "-V" | "--version" => {
-                return if args.len() == 1 {
-                    Ok(SourceSelection::Version)
-                } else {
-                    Err(AppError::new(ARITY_ERROR))
-                };
-            }
-            _ => {}
-        }
-    }
-
-    let source_args = if args.first().is_some_and(|argument| argument == "--") {
-        &args[1..]
-    } else {
-        if let Some(argument) = args.iter().find(|argument| {
-            argument.starts_with('-')
-                && !matches!(
-                    argument.as_str(),
-                    "-h" | "--help" | "-V" | "--version" | "--"
-                )
-        }) {
-            return Err(AppError::new(format!(
-                "Unknown option '{argument}'. Use 'mdr --help' for usage."
-            )));
-        }
-        args
-    };
-
-    if source_args.len() > 1 {
-        return Err(AppError::new(ARITY_ERROR));
-    }
-
-    if let Some(argument) = source_args.first() {
+) -> Result<SourceRequest, AppError> {
+    if let Some(argument) = argument {
         if let Ok(url) = Url::parse(argument)
             && matches!(url.scheme(), "http" | "https")
             && url.host_str().is_some()
         {
-            return Ok(SourceSelection::Request(SourceRequest::Remote(url)));
+            return Ok(SourceRequest::Remote(url));
         }
 
         if let Some(scheme) = explicit_url_scheme(argument) {
@@ -192,16 +141,14 @@ pub(crate) fn select_source_request(
             }
         }
 
-        return Ok(SourceSelection::Request(SourceRequest::File(
-            PathBuf::from(argument),
-        )));
+        return Ok(SourceRequest::File(PathBuf::from(argument)));
     }
 
-    Ok(SourceSelection::Request(if stdin_is_terminal {
+    Ok(if stdin_is_terminal {
         SourceRequest::Clipboard
     } else {
         SourceRequest::Stdin
-    }))
+    })
 }
 
 fn explicit_url_scheme(argument: &str) -> Option<&str> {
@@ -544,13 +491,6 @@ mod tests {
         }
     }
 
-    fn select(args: &[&str], terminal: bool) -> Result<SourceSelection, AppError> {
-        select_source_request(
-            &args.iter().map(ToString::to_string).collect::<Vec<_>>(),
-            terminal,
-        )
-    }
-
     fn load(
         request: SourceRequest,
         input: &[u8],
@@ -565,107 +505,11 @@ mod tests {
     }
 
     #[test]
-    fn selection_is_pure_exact_and_precedence_ordered() {
-        const ARITY_ERROR: &str =
-            "Expected at most one .md/.mdx path or HTTP(S) URL; use --help for usage.";
-
-        fn assert_file(args: &[&str], terminal: bool, expected: &str) {
-            assert_eq!(
-                select(args, terminal).unwrap(),
-                SourceSelection::Request(SourceRequest::File(PathBuf::from(expected)))
-            );
-        }
-
-        fn assert_error(args: &[&str], expected: &str) {
-            assert_eq!(select(args, false).unwrap_err().to_string(), expected);
-        }
-
-        for flag in ["-h", "--help"] {
-            assert_eq!(select(&[flag], true).unwrap(), SourceSelection::Help);
-            assert_error(&[flag, "extra.md"], ARITY_ERROR);
-        }
-        for flag in ["-V", "--version"] {
-            assert_eq!(select(&[flag], false).unwrap(), SourceSelection::Version);
-            assert_error(&[flag, "extra.md"], ARITY_ERROR);
-        }
-
-        assert_error(&["-x"], "Unknown option '-x'. Use 'mdr --help' for usage.");
-        assert_error(
-            &["--versin"],
-            "Unknown option '--versin'. Use 'mdr --help' for usage.",
-        );
-        assert_error(
-            &["--versin", "extra.md"],
-            "Unknown option '--versin'. Use 'mdr --help' for usage.",
-        );
-
-        assert_eq!(
-            select(&["--"], false).unwrap(),
-            SourceSelection::Request(SourceRequest::Stdin)
-        );
-        assert_eq!(
-            select(&["--"], true).unwrap(),
-            SourceSelection::Request(SourceRequest::Clipboard)
-        );
-        assert_file(&["--", "-notes.md"], false, "-notes.md");
-        assert_error(&["--", "one.md", "two.md"], ARITY_ERROR);
-
-        for path in [
-            "notes.md",
-            "/tmp/absolute-notes.mdx",
-            "./-notes.md",
-            "www.example.test/readme.md",
-            "notes:archive.md",
-            r"C:\docs\notes.md",
-            "C:/docs/notes.md",
-        ] {
-            assert_file(&[path], false, path);
-        }
-
-        for argument in [
-            "http://example.test/readme.md",
-            "hTtPs://user:secret@example.test/a.md?q=1#part",
-        ] {
-            let SourceSelection::Request(SourceRequest::Remote(url)) =
-                select(&[argument], false).unwrap()
-            else {
-                panic!("expected remote source for {argument}");
-            };
-            assert!(matches!(url.scheme(), "http" | "https"));
-            assert!(url.host_str().is_some());
-        }
-
-        for argument in ["http://", "HTTPS://", "hTtP://?missing-host"] {
-            assert_error(&[argument], "Invalid HTTP(S) URL.");
-        }
-        assert_error(
-            &["ftp://example.test/readme.md"],
-            "Unsupported URL scheme 'ftp'; only HTTP(S) URLs are supported.",
-        );
-        assert_error(
-            &["file:///tmp/readme.md"],
-            "Unsupported URL scheme 'file'; only HTTP(S) URLs are supported.",
-        );
-
-        assert_eq!(
-            select(&[], false).unwrap(),
-            SourceSelection::Request(SourceRequest::Stdin)
-        );
-        assert_eq!(
-            select(&[], true).unwrap(),
-            SourceSelection::Request(SourceRequest::Clipboard)
-        );
-    }
-
-    #[test]
     fn file_argument_wins_over_stdin_and_accepts_md_mdx_case_insensitively() {
         let directory = tempdir().unwrap();
         for name in ["Résumé 世界.MD", "component.MdX"] {
             fs::write(directory.path().join(name), format!("# {name}\n")).unwrap();
-            let request = match select(&[name], false).unwrap() {
-                SourceSelection::Request(request) => request,
-                _ => panic!("expected request"),
-            };
+            let request = select_source(Some(name), false).unwrap();
             let source = load(
                 request,
                 b"# ignored\n",

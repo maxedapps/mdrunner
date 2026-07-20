@@ -83,10 +83,12 @@ A target is **build-tested** only after cargo-dist build/package/checksum eviden
 - preserve safely restorable clipboard text, then exercise clipboard Markdown, one textual path, one `file://` URL, one native `.md`, one native `.mdx`, an unsupported native file, and multiple native files; restore and verify the saved state afterward;
 - fetch one bounded local HTTP fixture, one public HTTPS Markdown document, and the canonical GitHub blob example; inspect remote-relative links/images, credentials/redaction, timeout, and oversize failures;
 - inspect deterministic generated HTML, static CSP, local embedding, remote URL resolution, and absence of source credentials or executable MDX/HTML;
-- observe the actual default browser open the encoded `file://` URL, browser retrieval of an allowed remote image, prompt process exit, and absence of a product server;
+- exercise `--no-open` with default output and verify successful generation/path printing without a browser invocation;
+- exercise relative and absolute `--out` destinations, missing parent creation, a path containing spaces, and atomic replacement of an existing custom file; verify no deterministic cache copy is written, then combine custom output with `--no-open`;
+- observe the actual default browser open the encoded `file://` URL for both default and custom output, browser retrieval of an allowed remote image, prompt process exit, and absence of a product server;
 - inspect the installed/current-host archive's help/version and representative successful source paths.
 
-If the prior clipboard cannot be safely captured and restored, obtain approval before overwriting it; otherwise mark native clipboard cases unqualified. Record unavailable source modes as `build-tested, unqualified`; never infer clipboard, URL, or browser qualification from fake tests, compilation, another OS, Rosetta, or packaging. X11/XWayland and supported Wayland data-control sessions may qualify independently; unsupported pure-Wayland/headless sessions should produce the documented clipboard error. Preserve the historical v0.1.0 evidence below. Record the Linux glibc baseline from hosted linkage output; do not claim broad distro compatibility from the target triple.
+If the prior clipboard cannot be safely captured and restored, obtain approval before overwriting it; otherwise mark native clipboard cases unqualified. Record unavailable source modes as `build-tested, unqualified`; never infer clipboard, URL, custom-output replacement, or browser qualification from fake tests, compilation, another OS, Rosetta, or packaging. X11/XWayland and supported Wayland data-control sessions may qualify independently; unsupported pure-Wayland/headless sessions should produce the documented clipboard error. Preserve the historical v0.1.0 evidence below. Record the Linux glibc baseline from hosted linkage output; do not claim broad distro compatibility from the target triple.
 
 ## v0.1.0 setup evidence
 

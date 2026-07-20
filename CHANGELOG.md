@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `--no-open` for browser-free HTML generation and `--out <path>` for exact custom output files; both options can be used independently or together.
+
 ## [0.2.1] - 2026-07-20
 
 ### Fixed

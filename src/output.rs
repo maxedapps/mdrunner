@@ -10,19 +10,30 @@ use crate::source::{
     MarkdownSource, OutputIdentity, OutputStemInput, normalized_original_url, url_stem,
 };
 
-pub(crate) fn write_output(source: &MarkdownSource, html: &str) -> Result<PathBuf, AppError> {
-    write_output_in(source, html, &std::env::temp_dir())
+pub(crate) fn write_output(
+    source: &MarkdownSource,
+    html: &str,
+    custom_output: Option<&Path>,
+    cwd: &Path,
+) -> Result<PathBuf, AppError> {
+    write_output_in(source, html, custom_output, cwd, &std::env::temp_dir())
 }
 
 fn write_output_in(
     source: &MarkdownSource,
     html: &str,
+    custom_output: Option<&Path>,
+    cwd: &Path,
     temporary_directory: &Path,
 ) -> Result<PathBuf, AppError> {
-    let destination = output_path_for_source(source, temporary_directory);
+    let destination = match custom_output {
+        Some(path) if path.is_absolute() => path.to_owned(),
+        Some(path) => cwd.join(path),
+        None => output_path_for_source(source, temporary_directory),
+    };
     let directory = destination
         .parent()
-        .expect("the output path always has a parent");
+        .expect("an absolute output path always has a parent");
 
     fs::create_dir_all(directory).map_err(|_| output_error(&destination))?;
     let mut temporary = NamedTempFile::new_in(directory).map_err(|_| output_error(&destination))?;
@@ -263,9 +274,22 @@ mod tests {
     fn persistence_replaces_complete_file_without_temporary_siblings() {
         let temporary_directory = tempdir().unwrap();
         let source = file_source(temporary_directory.path().join("source.md"));
-        let first = write_output_in(&source, "first complete", temporary_directory.path()).unwrap();
-        let second =
-            write_output_in(&source, "second complete", temporary_directory.path()).unwrap();
+        let first = write_output_in(
+            &source,
+            "first complete",
+            None,
+            temporary_directory.path(),
+            temporary_directory.path(),
+        )
+        .unwrap();
+        let second = write_output_in(
+            &source,
+            "second complete",
+            None,
+            temporary_directory.path(),
+            temporary_directory.path(),
+        )
+        .unwrap();
 
         assert_eq!(first, second);
         assert_eq!(fs::read_to_string(&first).unwrap(), "second complete");
@@ -278,13 +302,87 @@ mod tests {
     }
 
     #[test]
+    fn custom_output_resolves_paths_creates_parents_and_replaces_atomically() {
+        let root = tempdir().unwrap();
+        let cwd = root.path().join("workspace");
+        let cache_root = root.path().join("unused-cache");
+        fs::create_dir(&cwd).unwrap();
+        let source = file_source(cwd.join("source.md"));
+        let relative = Path::new("published/nested/page.custom");
+        let expected = cwd.join(relative);
+
+        for html in ["first complete", "replacement complete"] {
+            let destination =
+                write_output_in(&source, html, Some(relative), &cwd, &cache_root).unwrap();
+            assert_eq!(destination, expected);
+        }
+        assert_eq!(
+            fs::read_to_string(&expected).unwrap(),
+            "replacement complete"
+        );
+        assert!(
+            !cache_root.exists(),
+            "custom output must not write the cache"
+        );
+        let siblings = fs::read_dir(expected.parent().unwrap())
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(siblings.len(), 1, "temporary sibling must be removed");
+        assert_eq!(siblings[0].path(), expected);
+
+        let absolute = root.path().join("absolute/no-extension-added");
+        assert_eq!(
+            write_output_in(&source, "absolute", Some(&absolute), &cwd, &cache_root).unwrap(),
+            absolute
+        );
+        assert_eq!(fs::read_to_string(&absolute).unwrap(), "absolute");
+    }
+
+    #[test]
+    fn custom_output_failures_name_the_absolute_destination_and_leave_no_temp_file() {
+        let root = tempdir().unwrap();
+        let cwd = root.path().join("workspace");
+        fs::create_dir(&cwd).unwrap();
+        fs::write(cwd.join("blocked"), "not a directory").unwrap();
+        let source = file_source(cwd.join("source.md"));
+        let destination = cwd.join("blocked/page.html");
+
+        let error = write_output_in(
+            &source,
+            "complete",
+            Some(Path::new("blocked/page.html")),
+            &cwd,
+            &root.path().join("unused-cache"),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            format!("{}: Could not write generated HTML.", destination.display())
+        );
+        let entries = fs::read_dir(&cwd)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path(), cwd.join("blocked"));
+    }
+
+    #[test]
     fn filesystem_failures_are_concise() {
         let temporary_directory = tempdir().unwrap();
         let unusable_root = temporary_directory.path().join("not-a-directory");
         fs::write(&unusable_root, "file").unwrap();
         let source = file_source(temporary_directory.path().join("source.md"));
 
-        let error = write_output_in(&source, "complete", &unusable_root).unwrap_err();
+        let error = write_output_in(
+            &source,
+            "complete",
+            None,
+            temporary_directory.path(),
+            &unusable_root,
+        )
+        .unwrap_err();
         assert!(
             error
                 .to_string()
