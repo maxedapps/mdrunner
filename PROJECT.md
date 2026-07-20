@@ -130,7 +130,7 @@ Release qualification additionally records each local, stdin, clipboard, HTTP, H
 
 ## CI and release automation
 
-`.github/workflows/ci.yml` is repository-owned. It runs formatting and clippy on Linux, then locked tests, a release build, and help/version smoke checks on native Linux, macOS, and Windows runners. It never opens a browser or publishes a release.
+`.github/workflows/ci.yml` is repository-owned. Pull requests and pushes to `main` use one Ubuntu runner for formatting, clippy, and locked tests. Ordinary CI intentionally performs no release-mode or cross-platform binary builds, opens no browser, and publishes nothing.
 
 `dist-workspace.toml` is the repository-owned release contract. It pins cargo-dist 0.32.0, explicitly opts the non-crates.io `mdr` package into distribution, and configures these archive targets:
 
@@ -139,11 +139,11 @@ Release qualification additionally records each local, stdin, clipboard, HTTP, H
 - `x86_64-unknown-linux-gnu`
 - `x86_64-pc-windows-msvc`
 
-It also configures shell and PowerShell installers, SHA-256 checksums, GitHub hosting, and host-phase GitHub attestations. `.github/workflows/release.yml` is generated exclusively by `dist init` and must not be hand-edited. Its normal pull-request mode is planning only; release publication is triggered only by a version tag. GitHub Actions/cargo-dist is the deliberate hosted-release exception to the otherwise Cargo-only development interface.
+It also configures shell and PowerShell installers, SHA-256 checksums, GitHub hosting, and host-phase GitHub attestations. `.github/workflows/release.yml` is generated exclusively by `dist init` and must not be hand-edited. Its normal pull-request mode runs planning only and skips every binary-builder job. Only an explicitly pushed version tag starts native release builds, packaging, hosting, and publication. GitHub Actions/cargo-dist is the deliberate hosted-release exception to the otherwise Cargo-only development interface.
 
 ## Target evidence
 
-**Build-tested** means native CI and cargo-dist successfully built, packaged, and checksummed the configured artifact. **Native-qualified** additionally requires the desktop/browser smoke gate above on matching hardware. Compilation or packaging alone is not qualification.
+**Build-tested** means cargo-dist successfully built, packaged, and checksummed the configured artifact on its release runner. **Native-qualified** additionally requires the desktop/browser smoke gate above on matching hardware. Ubuntu tests, compilation, or packaging alone are not qualification.
 
 All four configured archives are build-tested by the non-publishing cargo-dist setup run. The Linux manifest records a glibc 2.35 build environment and linkage to system `libc`, `libgcc_s`, and `libm`; no older-glibc compatibility is claimed.
 

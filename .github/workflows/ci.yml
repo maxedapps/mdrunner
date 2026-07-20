@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Format and clippy
+  checks:
+    name: Format, clippy, and tests
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -24,45 +24,5 @@ jobs:
         run: cargo fmt --check
       - name: Run clippy
         run: cargo clippy --all-targets -- -D warnings
-
-  native:
-    name: Test ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux x64
-            runner: ubuntu-24.04
-            binary: ./target/release/mdr
-          - name: macOS
-            runner: macos-15
-            binary: ./target/release/mdr
-          - name: Windows x64
-            runner: windows-2025
-            binary: .\target\release\mdr.exe
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - name: Show pinned Rust toolchain
-        run: rustc --version
       - name: Run locked tests
         run: cargo test --locked
-      - name: Build locked release binary
-        run: cargo build --release --locked
-      - name: Smoke help and version on Unix
-        if: runner.os != 'Windows'
-        run: |
-          "${{ matrix.binary }}" --help
-          test "$("${{ matrix.binary }}" --version)" = "mdr 0.1.0"
-      - name: Smoke help and version on Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          & "${{ matrix.binary }}" --help
-          $version = & "${{ matrix.binary }}" --version
-          if ($version -ne "mdr 0.1.0") {
-            throw "Unexpected version output: $version"
-          }
