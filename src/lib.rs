@@ -1,18 +1,20 @@
 mod assets;
 mod browser;
+mod clipboard;
 mod code;
 mod output;
+mod remote;
 mod render;
 mod source;
 
 use std::env;
 use std::fmt;
-use std::io::{self, IsTerminal, Write};
-use std::path::Path;
+use std::io::{self, IsTerminal, Read, Write};
+use std::path::{Path, PathBuf};
 
-use source::SourceSelection;
+use source::{MarkdownSource, SourceRequest, SourceSelection};
 
-pub const USAGE_TEXT: &str = "Usage: mdr <file.md>\n       command-producing-markdown | mdr";
+pub const USAGE_TEXT: &str = "Usage: mdr <file.md|file.mdx|http(s)://url>\n       command-producing-markdown | mdr\n       mdr\n\nWith no argument, mdr reads redirected stdin or the terminal clipboard.";
 
 #[derive(Debug)]
 pub struct AppError {
@@ -57,14 +59,9 @@ pub fn run() -> Result<(), AppError> {
                 .map_err(|_| AppError::new("Command-line arguments must be valid UTF-8."))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let cwd =
-        env::current_dir().map_err(|_| AppError::new("Could not determine current directory."))?;
     let stdin = io::stdin();
-    let stdin_is_terminal = stdin.is_terminal();
-    let selection =
-        source::read_markdown_source(&args, &mut stdin.lock(), stdin_is_terminal, &cwd)?;
-
-    let source = match selection {
+    let selection = source::select_source_request(&args, stdin.is_terminal())?;
+    let request = match selection {
         SourceSelection::Help => {
             println!("{USAGE_TEXT}");
             return Ok(());
@@ -73,17 +70,70 @@ pub fn run() -> Result<(), AppError> {
             println!("mdr {}", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
-        SourceSelection::Render(source) => source,
+        SourceSelection::Request(request) => request,
     };
 
-    let html = render::render_document(&source)?;
-    let output_path = output::write_output(&source, &html)?;
-    println!("{}", output_path.display());
-    io::stdout()
-        .flush()
-        .map_err(|_| AppError::new("Could not print generated HTML path."))?;
-    browser::open_output(&output_path)?;
-    Ok(())
+    let cwd =
+        env::current_dir().map_err(|_| AppError::new("Could not determine current directory."))?;
+    execute_render(request, &mut stdin.lock(), &cwd, &mut ProductionRuntime)
+}
+
+trait RenderRuntime {
+    fn load(
+        &mut self,
+        request: SourceRequest,
+        stdin: &mut dyn Read,
+        cwd: &Path,
+    ) -> Result<MarkdownSource, AppError>;
+    fn render(&mut self, source: &MarkdownSource) -> Result<String, AppError>;
+    fn persist(&mut self, source: &MarkdownSource, html: &str) -> Result<PathBuf, AppError>;
+    fn print_path(&mut self, path: &Path) -> Result<(), AppError>;
+    fn open_browser(&mut self, path: &Path) -> Result<(), AppError>;
+}
+
+struct ProductionRuntime;
+
+impl RenderRuntime for ProductionRuntime {
+    fn load(
+        &mut self,
+        request: SourceRequest,
+        stdin: &mut dyn Read,
+        cwd: &Path,
+    ) -> Result<MarkdownSource, AppError> {
+        source::load_source_request(request, stdin, cwd)
+    }
+
+    fn render(&mut self, source: &MarkdownSource) -> Result<String, AppError> {
+        render::render_document(source)
+    }
+
+    fn persist(&mut self, source: &MarkdownSource, html: &str) -> Result<PathBuf, AppError> {
+        output::write_output(source, html)
+    }
+
+    fn print_path(&mut self, path: &Path) -> Result<(), AppError> {
+        println!("{}", path.display());
+        io::stdout()
+            .flush()
+            .map_err(|_| AppError::new("Could not print generated HTML path."))
+    }
+
+    fn open_browser(&mut self, path: &Path) -> Result<(), AppError> {
+        browser::open_output(path)
+    }
+}
+
+fn execute_render(
+    request: SourceRequest,
+    stdin: &mut dyn Read,
+    cwd: &Path,
+    runtime: &mut impl RenderRuntime,
+) -> Result<(), AppError> {
+    let source = runtime.load(request, stdin, cwd)?;
+    let html = runtime.render(&source)?;
+    let output_path = runtime.persist(&source, &html)?;
+    runtime.print_path(&output_path)?;
+    runtime.open_browser(&output_path)
 }
 
 /// Render a Markdown file without persistence or browser side effects.
@@ -102,7 +152,95 @@ pub fn render_file_to_html(path: &Path) -> Result<String, AppError> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::*;
+
+    struct FakeRuntime {
+        fail_at: Option<&'static str>,
+        calls: Vec<&'static str>,
+    }
+
+    impl FakeRuntime {
+        fn result(&self, step: &'static str) -> Result<(), AppError> {
+            if self.fail_at == Some(step) {
+                Err(AppError::new(format!("{step} failed")))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl RenderRuntime for FakeRuntime {
+        fn load(
+            &mut self,
+            _: SourceRequest,
+            _: &mut dyn Read,
+            cwd: &Path,
+        ) -> Result<MarkdownSource, AppError> {
+            self.calls.push("load");
+            self.result("load")?;
+            Ok(MarkdownSource::Stdin {
+                markdown: "# test".to_owned(),
+                cwd: cwd.to_owned(),
+            })
+        }
+
+        fn render(&mut self, _: &MarkdownSource) -> Result<String, AppError> {
+            self.calls.push("render");
+            self.result("render")?;
+            Ok("html".to_owned())
+        }
+
+        fn persist(&mut self, _: &MarkdownSource, _: &str) -> Result<PathBuf, AppError> {
+            self.calls.push("persist");
+            self.result("persist")?;
+            Ok(PathBuf::from("/tmp/mdr-test.html"))
+        }
+
+        fn print_path(&mut self, _: &Path) -> Result<(), AppError> {
+            self.calls.push("print");
+            self.result("print")
+        }
+
+        fn open_browser(&mut self, _: &Path) -> Result<(), AppError> {
+            self.calls.push("browser");
+            self.result("browser")
+        }
+    }
+
+    #[test]
+    fn orchestration_stops_before_persistence_and_browser_on_earlier_failures() {
+        let steps = ["load", "render", "persist", "print", "browser"];
+        for (failed_index, failed_step) in steps.into_iter().enumerate() {
+            let mut runtime = FakeRuntime {
+                fail_at: Some(failed_step),
+                calls: Vec::new(),
+            };
+            let error = execute_render(
+                SourceRequest::Stdin,
+                &mut Cursor::new(b"ignored"),
+                Path::new("/workspace"),
+                &mut runtime,
+            )
+            .unwrap_err();
+            assert_eq!(runtime.calls, steps[..=failed_index]);
+            assert_eq!(error.to_string(), format!("{failed_step} failed"));
+        }
+
+        let mut runtime = FakeRuntime {
+            fail_at: None,
+            calls: Vec::new(),
+        };
+        execute_render(
+            SourceRequest::Stdin,
+            &mut Cursor::new(b"ignored"),
+            Path::new("/workspace"),
+            &mut runtime,
+        )
+        .unwrap();
+        assert_eq!(runtime.calls, steps);
+    }
 
     #[test]
     fn errors_have_concise_display_forms() {

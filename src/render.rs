@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::path::Path;
 
 use comrak::arena_tree::NodeEdge;
 use comrak::nodes::NodeValue;
@@ -8,9 +7,9 @@ use comrak::{Arena, Options, format_html_with_plugins, parse_document};
 use url::Url;
 
 use crate::AppError;
-use crate::assets::resolve_image;
+use crate::assets::{resolve_image, resolve_remote_image};
 use crate::code::{CodeRenderer, PlaintextRenderer};
-use crate::source::MarkdownSource;
+use crate::source::{MarkdownSource, ResourceContext};
 
 const DOCUMENT_CSP: &str = "default-src 'none'; base-uri 'none'; connect-src 'none'; font-src 'none'; form-action 'none'; frame-src 'none'; img-src data: http: https:; manifest-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; style-src 'unsafe-inline'; worker-src 'none'";
 const PRODUCT_STYLES: &str = include_str!("styles.css");
@@ -111,12 +110,12 @@ fn prepare_ast<'a>(
                         h1_text.as_mut().expect("checked above").push(' ');
                     }
                     NodeValue::Link(link) => {
-                        link.url = rewrite_link(&link.url, source.asset_base())?;
+                        link.url = rewrite_link(&link.url, source.resource_context())?;
                     }
                     NodeValue::Image(image) => {
-                        image.url = resolve_image(
+                        image.url = rewrite_image(
                             &image.url,
-                            source.asset_base(),
+                            source.resource_context(),
                             &source.label(),
                             line,
                             column,
@@ -153,7 +152,7 @@ fn prepare_ast<'a>(
     })
 }
 
-fn rewrite_link(raw: &str, asset_base: &Path) -> Result<String, AppError> {
+fn rewrite_link(raw: &str, resource_context: ResourceContext<'_>) -> Result<String, AppError> {
     let value = raw.trim();
     if value.starts_with('#') {
         return Ok(value.to_owned());
@@ -164,38 +163,62 @@ fn rewrite_link(raw: &str, asset_base: &Path) -> Result<String, AppError> {
 
     if let Ok(url) = Url::parse(value) {
         return match url.scheme() {
-            "http" | "https" | "mailto" | "tel" => Ok(url.to_string()),
+            "http" | "https" if url.host_str().is_some() => Ok(value.to_owned()),
+            "mailto" | "tel" => Ok(value.to_owned()),
             _ => Err(AppError::new("Unsafe or invalid link URL.")),
         };
     }
 
-    let base_url = Url::from_directory_path(asset_base)
-        .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
-    let containment_base = base_url
-        .to_file_path()
-        .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
-    let url = base_url
-        .join(value)
-        .map_err(|_| AppError::new("Unsafe or invalid link URL."))?;
-    let target = url
-        .to_file_path()
-        .map_err(|()| AppError::new("Unsafe or invalid link URL."))?;
-    if !target.starts_with(&containment_base) {
-        return Err(AppError::new("Unsafe or invalid link URL."));
+    match resource_context {
+        ResourceContext::Local(asset_base) => {
+            let base_url = Url::from_directory_path(asset_base)
+                .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
+            let containment_base = base_url
+                .to_file_path()
+                .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
+            let url = base_url
+                .join(value)
+                .map_err(|_| AppError::new("Unsafe or invalid link URL."))?;
+            let target = url
+                .to_file_path()
+                .map_err(|()| AppError::new("Unsafe or invalid link URL."))?;
+            if !target.starts_with(&containment_base) {
+                return Err(AppError::new("Unsafe or invalid link URL."));
+            }
+            Ok(url.to_string())
+        }
+        ResourceContext::Remote(resource_base) => {
+            let joined = resource_base
+                .join(value)
+                .map_err(|_| AppError::new("Unsafe or invalid link URL."))?;
+            if matches!(joined.scheme(), "http" | "https") && joined.host_str().is_some() {
+                Ok(joined.to_string())
+            } else {
+                Err(AppError::new("Unsafe or invalid link URL."))
+            }
+        }
     }
-    Ok(url.to_string())
+}
+
+fn rewrite_image(
+    raw: &str,
+    resource_context: ResourceContext<'_>,
+    source_label: &str,
+    line: usize,
+    column: usize,
+) -> Result<String, AppError> {
+    match resource_context {
+        ResourceContext::Local(asset_base) => {
+            resolve_image(raw, asset_base, source_label, line, column)
+        }
+        ResourceContext::Remote(resource_base) => {
+            resolve_remote_image(raw, resource_base, source_label, line, column)
+        }
+    }
 }
 
 fn fallback_title(source: &MarkdownSource) -> String {
-    match source {
-        MarkdownSource::File { canonical_path, .. } => canonical_path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .filter(|stem| !stem.is_empty())
-            .unwrap_or("Markdown document")
-            .to_owned(),
-        MarkdownSource::Stdin { .. } => "Markdown document".to_owned(),
-    }
+    source.fallback_title()
 }
 
 fn assemble_document(title: &str, fragment: &str) -> String {
@@ -240,6 +263,14 @@ mod tests {
         MarkdownSource::Stdin {
             markdown: markdown.to_owned(),
             cwd: test_workspace(),
+        }
+    }
+
+    fn remote_source(markdown: &str, base: &str) -> MarkdownSource {
+        MarkdownSource::Remote {
+            markdown: markdown.to_owned(),
+            original_url: Url::parse("https://example.test/original.md").unwrap(),
+            resource_base: Url::parse(base).unwrap(),
         }
     }
 
@@ -297,9 +328,9 @@ mod tests {
         let source = MarkdownSource::File {
             markdown: "<script>alert(1)</script>\n\n[local](<guide one.md#part>) [remote](https://example.com/a?q=1)\n".to_owned(),
             canonical_path: asset_base.join("Links.md"),
-            asset_base,
+            asset_base: asset_base.clone(),
         };
-        let mut expected_local = Url::from_file_path(source.asset_base().join("guide one.md"))
+        let mut expected_local = Url::from_file_path(asset_base.join("guide one.md"))
             .expect("the canonical test directory has a file URL");
         expected_local.set_fragment(Some("part"));
 
@@ -311,6 +342,123 @@ mod tests {
 
         assert!(render_document(&file_source("[bad](../secret.md)\n", "Links.md")).is_err());
         assert!(render_document(&file_source("[bad](javascript:alert(1))\n", "Links.md")).is_err());
+    }
+
+    #[test]
+    fn remote_links_and_images_resolve_against_the_final_http_url() {
+        let source = remote_source(
+            "[sibling](guide.md) [root](/root.md) [query](?raw=1) [fragment](#part)\n\n![sibling](img/p.png) ![root](/img/root.png) ![query](?image=1) ![fragment](#preview)\n\n[https](https://safe.example/a) [mail](mailto:hello@example.test) [tel](tel:+123) ![cdn](https://cdn.example/a.png)\n",
+            "https://example.test/docs/source.md?old=1",
+        );
+        let html = render_document(&source).unwrap();
+        for expected in [
+            "https://example.test/docs/guide.md",
+            "https://example.test/root.md",
+            "https://example.test/docs/source.md?raw=1",
+            "href=\"#part\"",
+            "https://example.test/docs/img/p.png",
+            "https://example.test/img/root.png",
+            "https://example.test/docs/source.md?image=1",
+            "https://example.test/docs/source.md?old=1#preview",
+            "https://safe.example/a",
+            "mailto:hello@example.test",
+            "tel:+123",
+            "https://cdn.example/a.png",
+        ] {
+            assert!(html.contains(expected), "missing {expected}");
+        }
+
+        let github = remote_source(
+            "![raw sibling](../images/logo.png)\n",
+            "https://github.com/o/r/raw/main/docs/guide.md",
+        );
+        assert!(
+            render_document(&github)
+                .unwrap()
+                .contains("https://github.com/o/r/raw/main/images/logo.png")
+        );
+    }
+
+    #[test]
+    fn remote_references_reject_unsafe_forms_and_never_read_local_sentinels() {
+        let directory = tempdir().unwrap();
+        let sentinel = directory.path().join("sentinel.png");
+        fs::write(&sentinel, b"LOCAL_SENTINEL_BYTES").unwrap();
+        let source = remote_source(
+            "[sentinel](sentinel.png) ![sentinel](sentinel.png)\n",
+            "http://127.0.0.1:8123/docs/source.md",
+        );
+        let html = render_document(&source).unwrap();
+        assert!(html.contains("http://127.0.0.1:8123/docs/sentinel.png"));
+        assert!(!html.contains("file://"));
+        assert!(!html.contains("LOCAL_SENTINEL_BYTES"));
+        assert!(!html.contains("data:image"));
+
+        let base = Url::parse("https://example.test/docs/source.md").unwrap();
+        for raw in [
+            "//evil.test/path",
+            "file:///tmp/path",
+            "data:text/plain,x",
+            "javascript:alert(1)",
+            "..\\local.md",
+        ] {
+            assert!(
+                rewrite_link(raw, ResourceContext::Remote(&base)).is_err(),
+                "{raw}"
+            );
+            assert!(
+                rewrite_image(raw, ResourceContext::Remote(&base), "remote", 1, 1).is_err(),
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn mdx_syntax_remains_inert_static_markdown() {
+        let markdown = r#"import Widget from './Widget.js'
+export const secret = 'not executed'
+
+# MDX stays static
+
+<Widget onClick={() => alert('nope')} value={secret} />
+<script>globalThis.compromised = true</script>
+"#;
+        let html = render_document(&file_source(markdown, "component.mdx")).unwrap();
+
+        assert!(html.contains("import Widget"));
+        assert!(html.contains("export const secret"));
+        assert!(html.contains("&lt;Widget onClick="));
+        assert!(html.contains("&lt;script&gt;globalThis.compromised"));
+        assert!(!html.contains("<Widget"));
+        assert!(!html.contains("<script"));
+        assert!(!html.contains("onClick=\""));
+        assert!(html.contains("script-src 'none'"));
+        assert!(!html.contains("type=\"module\""));
+    }
+
+    #[test]
+    fn remote_metadata_never_exposes_url_credentials_in_html_or_errors() {
+        let source = MarkdownSource::Remote {
+            markdown: "Paragraph\n\n```ts unsupported=true\nvalue\n```\n".to_owned(),
+            original_url: Url::parse("https://user:secret@example.test/source.md?q=1").unwrap(),
+            resource_base: Url::parse("https://other:token@example.test/final/Guide.md").unwrap(),
+        };
+        let error = render_document(&source).unwrap_err().to_string();
+        assert!(error.starts_with("https://example.test/source.md?q=1:"));
+        assert!(!error.contains("user"));
+        assert!(!error.contains("secret"));
+        assert!(!error.contains("token"));
+
+        let source = MarkdownSource::Remote {
+            markdown: "Paragraph only\n".to_owned(),
+            original_url: Url::parse("https://user:secret@example.test/source.md").unwrap(),
+            resource_base: Url::parse("https://other:token@example.test/final/Guide.md").unwrap(),
+        };
+        let html = render_document(&source).unwrap();
+        assert!(html.contains("<title>Guide</title>"));
+        assert!(!html.contains("user"));
+        assert!(!html.contains("secret"));
+        assert!(!html.contains("token"));
     }
 
     #[test]

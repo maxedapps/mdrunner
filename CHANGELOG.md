@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added terminal clipboard Markdown, native clipboard `.md`/`.mdx` files, clipboard paths, and `file://` sources.
+- Added inert `.mdx` file rendering without executing imports, JSX, expressions, handlers, or scripts.
+- Added bounded HTTP(S) Markdown fetching, URL-supplied Basic credentials, canonical GitHub blob links, and safe remote-relative links/images.
+
+### Changed
+
+- Applied one strict UTF-8 10 MiB source limit across files, stdin, clipboard, and decoded remote responses.
+- Extended deterministic output identity and portable names for clipboard and remote sources while keeping source credentials out of diagnostics and HTML.
+
 ## [0.1.0] - 2026-07-20
 
 ### Added

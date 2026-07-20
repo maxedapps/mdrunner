@@ -14,6 +14,7 @@ publish = false
 dist = true
 
 [dependencies]
+arboard = { version = "=3.6.1", default-features = false, features = ["wayland-data-control"] }
 base64 = "0.22.1"
 comrak = { version = "0.54.0", default-features = false }
 lumis = { version = "=0.12.0", default-features = false, features = [
@@ -41,7 +42,11 @@ percent-encoding = "2.3.2"
 sha2 = "0.10.9"
 tempfile = "3.23.0"
 url = "2.5.7"
+ureq = { version = "=3.3.0", default-features = false, features = ["rustls", "gzip"] }
 webbrowser = { version = "1.0.6", default-features = false }
+
+[dev-dependencies]
+flate2 = "1.1.9"
 
 # The profile that 'dist' will build with
 [profile.dist]

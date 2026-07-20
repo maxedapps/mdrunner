@@ -60,8 +60,8 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/maxedapps/mdr/rele
    ```
 
    `dist --version` must report 0.32.0. A local `dist build` is current-host evidence only; it cannot prove all configured targets.
-5. Inspect the current-host archive, metadata files, executable name, sidecar digest, and `mdr --version`. `target/distrib/` is generated residue and must remain untracked.
-6. Require `.github/workflows/ci.yml` and the final plan-mode release workflow to pass on the exact candidate commit.
+5. Inspect the current-host archive, metadata files, executable name, sidecar digest, `mdr --help`, and `mdr --version`. Confirm native linkage for the selected clipboard and Rustls HTTP dependencies. `target/distrib/` is generated residue and must remain untracked.
+6. Require `.github/workflows/ci.yml` and the final plan-mode release workflow to pass on the exact candidate commit. Native CI must compile/link the clipboard and HTTP dependencies and pass locked tests plus release help/version without reading a real clipboard, opening a browser, or relying on public network access.
 
 ## One-time setup pull-request proof
 
@@ -76,15 +76,17 @@ Use this only for initial pipeline setup or a major release-pipeline change:
 
 ## Build-tested versus native-qualified
 
-A target is **build-tested** only after native CI and cargo-dist build/package/checksum evidence succeeds for that target. It is **native-qualified** only after the release candidate also passes all of these on matching desktop hardware:
+A target is **build-tested** only after native CI and cargo-dist build/package/checksum evidence succeeds for that target. It is **native-qualified** only after the release candidate records each applicable mode separately on matching desktop hardware:
 
-- run an outside-repository `.md` file with representative local assets;
+- run outside-repository `.md` and inert `.mdx` files with representative local assets;
 - run representative Markdown through stdin;
-- inspect the generated self-contained HTML;
-- observe the actual default browser open the encoded `file://` URL;
-- confirm prompt process exit and no server or localhost behavior.
+- preserve safely restorable clipboard text, then exercise clipboard Markdown, one textual path, one `file://` URL, one native `.md`, one native `.mdx`, an unsupported native file, and multiple native files; restore and verify the saved state afterward;
+- fetch one bounded local HTTP fixture, one public HTTPS Markdown document, and the canonical GitHub blob example; inspect remote-relative links/images, credentials/redaction, timeout, and oversize failures;
+- inspect deterministic generated HTML, static CSP, local embedding, remote URL resolution, and absence of source credentials or executable MDX/HTML;
+- observe the actual default browser open the encoded `file://` URL, browser retrieval of an allowed remote image, prompt process exit, and absence of a product server;
+- inspect the installed/current-host archive's help/version and representative successful source paths.
 
-Record unavailable native checks as `build-tested, unqualified`; never infer qualification from compilation. Apple Silicon macOS may reuse the existing native evidence only while the release candidate has no material renderer, output, or browser-boundary change. Intel macOS, x64 GNU/Linux, and x64 Windows remain unqualified until matching evidence exists. Record the Linux glibc baseline from hosted linkage output; do not claim broad distro compatibility from the target triple.
+If the prior clipboard cannot be safely captured and restored, obtain approval before overwriting it; otherwise mark native clipboard cases unqualified. Record unavailable source modes as `build-tested, unqualified`; never infer clipboard, URL, or browser qualification from fake tests, compilation, another OS, Rosetta, or packaging. X11/XWayland and supported Wayland data-control sessions may qualify independently; unsupported pure-Wayland/headless sessions should produce the documented clipboard error. Preserve the historical v0.1.0 evidence below. Record the Linux glibc baseline from hosted linkage output; do not claim broad distro compatibility from the target triple.
 
 ## v0.1.0 setup evidence
 

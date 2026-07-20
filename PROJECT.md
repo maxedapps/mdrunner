@@ -6,7 +6,9 @@
 
 ```bash
 mdr ./README.md
+mdr https://github.com/maxedapps/mdr/blob/main/CHANGELOG.md
 cat README.md | mdr
+mdr # terminal clipboard
 ```
 
 The product deliberately has no subcommands, server mode, watcher, daemon, renderer selector, theme configuration, or runtime JavaScript. Release automation is repository infrastructure, not product runtime behavior.
@@ -14,8 +16,9 @@ The product deliberately has no subcommands, server mode, watcher, daemon, rende
 ## User flow
 
 ```text
-select file or redirected stdin
-  → read strict UTF-8 Markdown and establish a canonical asset base
+purely select file, HTTP(S) URL, redirected stdin, or terminal clipboard
+  → load at most 10 MiB of strict UTF-8 Markdown
+  → establish an explicit canonical local or sanitized final-URL resource context
   → parse one Comrak AST and prepare links, images, title, and code locations
   → render code with Lumis and Mermaid with the native renderer
   → assemble one complete inline-CSS HTML5 document
@@ -29,13 +32,20 @@ All meaningful rendering finishes before persistence and browser opening. Failur
 
 ## CLI and source contract
 
-- Accept `-h` or `--help`, `-V` or `--version`, exactly one case-insensitive `.md` path, or redirected stdin.
-- `-V` and `--version` print `mdr <Cargo package version>` and exit successfully before source, render, output, or browser work.
-- Reject extra arguments, interactive stdin without a file, empty stdin, and invalid UTF-8.
-- A file argument takes precedence over redirected stdin.
-- Canonicalize file input and require a regular file.
-- Resolve file assets from the canonical source directory and stdin assets from the current directory.
-- Use first H1, then file stem, then `Markdown document` as title precedence.
+- Accept exact `-h`/`--help`, `-V`/`--version`, one case-insensitive `.md`/`.mdx` path, one absolute host-bearing HTTP(S) URL, redirected stdin, or terminal clipboard.
+- Selection is pure and ordered: help/version, argument, redirected stdin, clipboard. Help/version exits before cwd, clipboard, network, render, output, or browser work.
+- Canonicalize local files and require a regular file. Native clipboard file lists are authoritative and must contain exactly one supported file; only absent/empty lists fall through to text.
+- Classify trimmed single-line clipboard `.md`/`.mdx` paths and `file://` URLs through the shared file loader. Preserve all other non-empty clipboard text exactly and never auto-fetch copied HTTP(S) text.
+- Stream file, stdin, clipboard-selected-file, and decoded HTTP bodies through one 10 MiB + 1 boundary. Apply the same byte limit to materialized clipboard text. Require strict UTF-8; remote content must also be non-whitespace.
+- Treat MDX syntax as inert Markdown. No JSX, import/export, expression, event-handler, or script execution exists.
+- Resolve local resources from the canonical source directory or current directory. Resolve remote references only against a userinfo-free final HTTP(S) URL.
+- Use first H1, then file/final-URL stem, then `Markdown document` as title precedence.
+
+### Remote loading
+
+Remote loading is a direct synchronous `ureq` request with ambient proxy discovery disabled, 5-second connect and 20-second global timeouts, and at most 10 followed redirects. URL userinfo supplies decoded Basic credentials only to the URL that explicitly contains it; authorization is cleared for every redirect before any target-supplied credentials are applied. Diagnostics redact username/password and never include response bodies.
+
+Accept only successful strict-UTF-8 `text/markdown`, `text/plain`, or `application/markdown` responses. Missing or `application/octet-stream` content types require a requested or final `.md`, `.mdx`, or `.markdown` path. Reject HTML/XHTML, malformed/unsupported types, empty content, transport/TLS/decompression failures, and decoded bodies over 10 MiB. Canonical `github.com/{owner}/{repo}/blob/{opaque remainder}` paths alone are requested through GitHub's `/raw/` route; original URL identity is unchanged.
 
 ## Static document contract
 
@@ -60,11 +70,13 @@ Fence metadata is limited to `title="..."`, marked ranges `{1,3-5}`, and inserte
 
 Renderer-produced SVG is trusted inline output. It is not reparsed, rewritten, sanitized, or independently validated.
 
-### Images
+### Images and remote references
 
-Remote HTTP(S) image URLs pass through without generation-time fetching. Local paths have query/fragment removed, are strictly percent-decoded, and are canonicalized against the canonical source base. The canonical target must remain inside that base, be a regular file, and use PNG, JPEG, GIF, WebP, or SVG extension mapping. Bytes are embedded with padded Base64.
+Remote HTTP(S) image URLs pass through without generation-time fetching. Remote-relative and root-relative links/images join only against the sanitized final HTTP(S) response URL; joined non-HTTP(S), protocol-relative, `file:`, `data:`, script, and backslash forms fail. This branch never resolves against cwd or reads local files.
 
-The policy is intentionally containment-based: there is no file-signature sniffing, repeated metadata comparison, no-follow platform machinery, or SVG content validation. Authored SVG stays isolated as an `<img>` data URI rather than inline trusted markup. Unsafe schemes, absolute/protocol-relative paths, traversal or symlink escape, missing files, and unsupported extensions fail with source context.
+Local image paths have query/fragment removed, are strictly percent-decoded, and are canonicalized against the canonical source base. The canonical target must remain inside that base, be a regular file, and use PNG, JPEG, GIF, WebP, or SVG extension mapping. Bytes are embedded with padded Base64.
+
+The local policy is intentionally containment-based: there is no file-signature sniffing, repeated metadata comparison, no-follow platform machinery, or SVG content validation. Authored SVG stays isolated as an `<img>` data URI rather than inline trusted markup. Unsafe schemes, absolute/protocol-relative paths, traversal or symlink escape, missing files, and unsupported extensions fail with source context.
 
 ## Persistence and browser boundary
 
@@ -74,7 +86,9 @@ The destination shape is:
 <tmp>/mdr/<sha256-source-identity>/<portable-name>.html
 ```
 
-File identity is the canonical source path, so content changes reuse the same destination. Stdin identity is the current directory, a NUL separator, and exact Markdown bytes. File names replace control and cross-platform-forbidden characters, trim trailing dots/spaces, preserve other Unicode, and fall back to `document` for empty or reserved device stems. Stdin uses `stdin.html`.
+File identity is the canonical source path, so content changes reuse the same destination. Stdin identity is the current directory, a NUL separator, and exact Markdown bytes. Clipboard text adds a source-kind separator and uses its cwd/content. Remote identity uses a source-kind separator and normalized original URL with fragment removed while retaining query and userinfo in the digest. Diagnostics and rendered metadata always redact URL userinfo.
+
+File names replace control and cross-platform-forbidden characters, trim trailing dots/spaces, preserve other Unicode, and fall back to `document` for empty or reserved device stems. Stdin uses `stdin.html`, clipboard text uses `clipboard.html`, and remote output uses a final-path-derived stem.
 
 A named temporary sibling is created in the destination directory, receives the complete HTML bytes, and is atomically persisted over the destination. Crash-durability synchronization and backup/restore machinery are out of scope.
 
@@ -89,12 +103,14 @@ Direct dependencies are intentionally narrow:
 - `comrak` — Markdown/GFM AST and HTML formatting, without default features
 - `lumis` — static multi-theme code highlighting, without defaults and with the curated languages above
 - `mermaid-rs-renderer` — synchronous native Mermaid SVG, without default features
-- `base64`, `percent-encoding`, and `url` — embedded assets and URL handling
+- `arboard` 3.6.1 — synchronous text/native-file clipboard access, image data disabled, Wayland data-control enabled
+- `ureq` 3.3.0 — bounded blocking HTTP(S), without defaults and with Rustls/gzip only
+- `base64`, `percent-encoding`, and `url` — embedded assets, Basic credentials, and URL handling
 - `sha2` — deterministic cache identity
 - `tempfile` — sibling temporary files and atomic persistence
 - `webbrowser` — direct default-browser opening, without default features
 
-Do not add async runtimes, HTTP stacks, XML/SVG parsers, plugin frameworks, generic sanitizers, or cross-target build layers without an observed requirement and a separate design decision.
+`flate2` is test-only for decoded-gzip limit fixtures. Do not add async runtimes, another HTTP stack, XML/SVG parsers, plugin frameworks, generic sanitizers, or cross-target build layers without an observed requirement and a separate design decision.
 
 ## Development and validation
 
@@ -108,9 +124,9 @@ cargo test --locked
 cargo build --release --locked
 ```
 
-Tests protect distinct visible contracts: source selection and errors, GFM/static shell behavior, bounded code metadata, native Mermaid success and diagnostics, image containment and embedding, deterministic atomic output, encoded file URLs, and one representative complete document. Prefer semantic assertions over renderer-owned snapshots or implementation-shape tests. Automated tests do not invoke a real browser.
+Tests protect distinct visible contracts: source precedence/errors, fake clipboard authority, shared source limits, loopback HTTP redirects/auth/MIME/decoded bodies, GitHub normalization, local/remote resource isolation, GFM/static shell behavior, bounded code metadata, native Mermaid diagnostics, image containment/embedding, deterministic atomic output, encoded file URLs, and one representative document. Prefer semantic assertions over renderer-owned snapshots or implementation-shape tests. Automated tests do not use a real clipboard, public network, or browser.
 
-Release qualification additionally requires native file and stdin smoke runs outside the repository, direct `file://` browser inspection, prompt process exit, and evidence that no product server or localhost request exists. Maintainers follow [RELEASING.md](RELEASING.md) for versioning and publication.
+Release qualification additionally records each local, stdin, clipboard, HTTP, HTTPS, GitHub, remote-reference, timeout/oversize, output, and browser mode separately on matching native desktops. Compilation does not qualify clipboard or browser behavior. Maintainers follow [RELEASING.md](RELEASING.md).
 
 ## CI and release automation
 
@@ -131,7 +147,7 @@ It also configures shell and PowerShell installers, SHA-256 checksums, GitHub ho
 
 All four configured archives are build-tested by the non-publishing cargo-dist setup run. The Linux manifest records a glibc 2.35 build environment and linkage to system `libc`, `libgcc_s`, and `libm`; no older-glibc compatibility is claimed.
 
-Only **Apple Silicon macOS** is currently native-qualified from the existing unchanged runtime boundary. Its current-host and hosted cargo-dist archives have also been inspected. Intel macOS, x64 GNU/Linux, and x64 Windows remain build-tested but unqualified until the full matching desktop/browser gate is performed.
+The published v0.1.0 evidence remains unchanged: only **Apple Silicon macOS** was native-qualified for its file/stdin/browser boundary. For the unreleased source build, Apple Silicon macOS additionally passed local `.md`/`.mdx`, stdin, HTTP/HTTPS/GitHub, timeout/oversize, remote-reference, output, and browser checks. Clipboard text/path/file URL/native-file behavior passed functional smoke checks, but clipboard qualification remains incomplete because the pre-test value was not safely captured and verified after restoration. Intel macOS, x64 GNU/Linux, and x64 Windows remain unqualified for the new paths until the full matching desktop gate is performed.
 
 ## Product principles
 

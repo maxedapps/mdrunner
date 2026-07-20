@@ -8,6 +8,55 @@ use url::Url;
 
 use crate::AppError;
 
+pub(crate) fn resolve_remote_image(
+    raw: &str,
+    source_base: &Url,
+    source_label: &str,
+    line: usize,
+    column: usize,
+) -> Result<String, AppError> {
+    let value = raw.trim();
+    let context = format!("{source_label}:{line}:{column}");
+    if value.is_empty() {
+        return Err(AppError::labeled("Image URL is empty.", context));
+    }
+    if value.starts_with("//") {
+        return Err(AppError::labeled(
+            "Protocol-relative image URLs are not allowed.",
+            context,
+        ));
+    }
+    if value.contains('\\') {
+        return Err(AppError::labeled(
+            "Image URL is unsafe or invalid.",
+            context,
+        ));
+    }
+
+    if let Ok(url) = Url::parse(value) {
+        return if matches!(url.scheme(), "http" | "https") && url.host_str().is_some() {
+            Ok(value.to_owned())
+        } else {
+            Err(AppError::labeled(
+                "Image URL scheme is not allowed.",
+                context,
+            ))
+        };
+    }
+
+    let joined = source_base
+        .join(value)
+        .map_err(|_| AppError::labeled("Image URL is unsafe or invalid.", context.clone()))?;
+    if matches!(joined.scheme(), "http" | "https") && joined.host_str().is_some() {
+        Ok(joined.to_string())
+    } else {
+        Err(AppError::labeled(
+            "Image URL scheme is not allowed.",
+            context,
+        ))
+    }
+}
+
 pub(crate) fn resolve_image(
     raw: &str,
     source_base: &Path,
@@ -153,6 +202,40 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+
+    #[test]
+    fn resolves_remote_images_without_local_access_and_rejects_unsafe_forms() {
+        let base = Url::parse("https://example.test/docs/guide.md?q=old#part").unwrap();
+        for (raw, expected) in [
+            ("image.png", "https://example.test/docs/image.png"),
+            ("/assets/root.png", "https://example.test/assets/root.png"),
+            ("?raw=1", "https://example.test/docs/guide.md?raw=1"),
+            (
+                "#preview",
+                "https://example.test/docs/guide.md?q=old#preview",
+            ),
+            (
+                "https://cdn.example.test/a.png?q=1",
+                "https://cdn.example.test/a.png?q=1",
+            ),
+        ] {
+            assert_eq!(
+                resolve_remote_image(raw, &base, "remote", 2, 3).unwrap(),
+                expected
+            );
+        }
+        for unsafe_value in [
+            "//example.test/a.png",
+            "file:///tmp/a.png",
+            "data:image/png;base64,AAAA",
+            "javascript:alert(1)",
+            "..\\local.png",
+            "",
+        ] {
+            let error = resolve_remote_image(unsafe_value, &base, "remote", 2, 3).unwrap_err();
+            assert!(error.to_string().starts_with("remote:2:3:"), "{error}");
+        }
+    }
 
     #[test]
     fn embeds_supported_extensions_without_signature_validation() {

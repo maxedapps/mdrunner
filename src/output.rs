@@ -6,7 +6,9 @@ use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 
 use crate::AppError;
-use crate::source::MarkdownSource;
+use crate::source::{
+    MarkdownSource, OutputIdentity, OutputStemInput, normalized_original_url, url_stem,
+};
 
 pub(crate) fn write_output(source: &MarkdownSource, html: &str) -> Result<PathBuf, AppError> {
     write_output_in(source, html, &std::env::temp_dir())
@@ -47,28 +49,40 @@ fn output_path_for_source(source: &MarkdownSource, temporary_directory: &Path) -
 
 fn cache_digest(source: &MarkdownSource) -> String {
     let mut digest = Sha256::new();
-    match source {
-        MarkdownSource::File { canonical_path, .. } => {
+    match source.output_identity() {
+        OutputIdentity::File(canonical_path) => {
+            // Preserve the existing file identity so cache paths do not migrate.
             digest.update(canonical_path.as_os_str().as_encoded_bytes());
         }
-        MarkdownSource::Stdin { markdown, cwd } => {
+        OutputIdentity::Stdin { markdown, cwd } => {
+            // Preserve the existing stdin identity for the same reason.
             digest.update(cwd.as_os_str().as_encoded_bytes());
             digest.update([0]);
             digest.update(markdown.as_bytes());
+        }
+        OutputIdentity::Clipboard { markdown, cwd } => {
+            digest.update(b"clipboard\0");
+            digest.update(cwd.as_os_str().as_encoded_bytes());
+            digest.update([0]);
+            digest.update(markdown.as_bytes());
+        }
+        OutputIdentity::Remote(original_url) => {
+            digest.update(b"remote\0");
+            digest.update(normalized_original_url(original_url).as_str().as_bytes());
         }
     }
     format!("{:x}", digest.finalize())
 }
 
 fn output_stem(source: &MarkdownSource) -> String {
-    match source {
-        MarkdownSource::File { canonical_path, .. } => sanitize_output_stem(
-            &canonical_path
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy(),
-        ),
-        MarkdownSource::Stdin { .. } => "stdin".to_owned(),
+    match source.output_stem_input() {
+        OutputStemInput::Path(path) => {
+            sanitize_output_stem(&path.file_stem().unwrap_or_default().to_string_lossy())
+        }
+        OutputStemInput::Fixed(stem) => stem.to_owned(),
+        OutputStemInput::Url(url) => {
+            sanitize_output_stem(&url_stem(url).unwrap_or_else(|| "document".to_owned()))
+        }
     }
 }
 
@@ -127,6 +141,21 @@ mod tests {
         }
     }
 
+    fn clipboard_source(markdown: &str, cwd: &Path) -> MarkdownSource {
+        MarkdownSource::Clipboard {
+            markdown: markdown.to_owned(),
+            cwd: cwd.to_owned(),
+        }
+    }
+
+    fn remote_source(original: &str, resource: &str) -> MarkdownSource {
+        MarkdownSource::Remote {
+            markdown: "ignored for remote identity".to_owned(),
+            original_url: url::Url::parse(original).unwrap(),
+            resource_base: url::Url::parse(resource).unwrap(),
+        }
+    }
+
     #[test]
     fn paths_are_stable_and_source_identity_is_complete() {
         let root = Path::new("/cache root");
@@ -156,6 +185,64 @@ mod tests {
         assert_ne!(
             cache_digest(&stdin),
             cache_digest(&stdin_source("# Hello\n", Path::new("/other")))
+        );
+    }
+
+    #[test]
+    fn clipboard_and_remote_paths_have_complete_separated_identities() {
+        let root = Path::new("/cache");
+        let cwd = Path::new("/workspace");
+        let clipboard = clipboard_source("# Hello\n", cwd);
+        assert_eq!(
+            output_path_for_source(&clipboard, root)
+                .file_name()
+                .unwrap(),
+            "clipboard.html"
+        );
+        assert_ne!(
+            cache_digest(&clipboard),
+            cache_digest(&stdin_source("# Hello\n", cwd))
+        );
+        assert_ne!(
+            cache_digest(&clipboard),
+            cache_digest(&clipboard_source("# Changed\n", cwd))
+        );
+        assert_ne!(
+            cache_digest(&clipboard),
+            cache_digest(&clipboard_source("# Hello\n", Path::new("/other")))
+        );
+
+        let first = remote_source(
+            "https://user:one@example.test/docs/CHANGELOG.md?q=1#first",
+            "https://example.test/final/CHANGELOG.md",
+        );
+        let changed_fragment = remote_source(
+            "https://user:one@example.test/docs/CHANGELOG.md?q=1#second",
+            "https://example.test/final/CHANGELOG.md",
+        );
+        let changed_query = remote_source(
+            "https://user:one@example.test/docs/CHANGELOG.md?q=2#first",
+            "https://example.test/final/CHANGELOG.md",
+        );
+        let changed_credentials = remote_source(
+            "https://user:two@example.test/docs/CHANGELOG.md?q=1#first",
+            "https://example.test/final/CHANGELOG.md",
+        );
+        assert_eq!(cache_digest(&first), cache_digest(&changed_fragment));
+        assert_ne!(cache_digest(&first), cache_digest(&changed_query));
+        assert_ne!(cache_digest(&first), cache_digest(&changed_credentials));
+        assert_eq!(
+            output_path_for_source(&first, root).file_name().unwrap(),
+            "CHANGELOG.html"
+        );
+        assert_eq!(
+            output_path_for_source(
+                &remote_source("https://example.test/", "https://example.test/"),
+                root,
+            )
+            .file_name()
+            .unwrap(),
+            "document.html"
         );
     }
 

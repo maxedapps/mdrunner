@@ -1,10 +1,10 @@
 # mdr
 
-`mdr` turns one Markdown document into polished, self-contained static HTML, opens it in your default browser with a `file://` URL, and exits. It is designed for quickly reading local Markdown without running a server.
+`mdr` turns one Markdown document into polished, self-contained static HTML, opens it in your default browser with a `file://` URL, and exits. It accepts local files, redirected input, clipboard content, and HTTP(S) documents without running a server.
 
 ## Install
 
-Prebuilt v0.1.0 archives and installers do not require Rust.
+Prebuilt v0.1.0 archives and installers do not require Rust. The clipboard, `.mdx`, and URL features documented below are currently unreleased and require a build from this repository until the next release.
 
 ### macOS or Linux
 
@@ -51,10 +51,18 @@ The artifacts are unsigned: macOS artifacts are not notarized, and Windows artif
 
 ## Use
 
-Render a Markdown file:
+Render one local Markdown or MDX file:
 
 ```sh
 mdr notes.md
+mdr component.mdx
+```
+
+Fetch Markdown over HTTPS, including canonical GitHub blob links:
+
+```sh
+mdr https://example.com/guide.md
+mdr https://github.com/maxedapps/mdr/blob/main/CHANGELOG.md
 ```
 
 Or redirect non-empty Markdown through standard input:
@@ -63,9 +71,13 @@ Or redirect non-empty Markdown through standard input:
 cat notes.md | mdr
 ```
 
-`mdr` accepts exactly one file whose `.md` extension is case-insensitive, or non-empty UTF-8 Markdown from redirected stdin. If both are provided, the file argument takes precedence. Relative assets resolve from the Markdown file's directory; for stdin, they resolve from the current directory.
+Running `mdr` with no argument and interactive stdin reads the system clipboard. A non-empty native file list is authoritative and must contain exactly one regular `.md` or `.mdx` file. Otherwise, single-line clipboard text ending in `.md`/`.mdx` or containing a `file://` URL opens that path; all other non-empty text is rendered exactly as copied. HTTP(S) text copied to the clipboard remains Markdown text and is not fetched.
 
-Show usage or the installed version and exit without rendering:
+Precedence is exact help/version, one file or absolute HTTP(S) URL argument, redirected stdin, then terminal clipboard. File extensions are case-insensitive. Every source is strict UTF-8 and limited to 10 MiB; exactly 10 MiB is accepted. Local resources resolve from the canonical file directory, or from the current directory for stdin and clipboard text.
+
+`.mdx` is treated as inert Markdown text. Imports, exports, JSX, expressions, event handlers, and scripts are never executed or processed as components.
+
+Show usage or the installed version and exit without any source I/O:
 
 ```sh
 mdr --help
@@ -80,7 +92,9 @@ The output location is deterministic:
 <temporary-directory>/mdr/<sha256-source-identity>/<portable-source-name>.html
 ```
 
-File identity comes from the canonical source path. Stdin identity comes from the current directory and Markdown content; its output is named `stdin.html`. `mdr` finishes and atomically persists the HTML, prints its absolute path, opens that exact file in the default browser, and exits. If browser opening fails, the printed path and completed file remain available for manual opening.
+Direct and clipboard-selected files use their canonical path as identity. Stdin identity uses the current directory and exact content; clipboard text has a separate identity using its current directory and exact content. Remote identity uses the original URL without its fragment but retains query and credentials in the digest. Outputs use portable source-derived names such as `stdin.html`, `clipboard.html`, or `CHANGELOG.html`. URL credentials are removed from diagnostics, titles, and HTML.
+
+`mdr` finishes and atomically persists the HTML, prints its absolute path, opens that exact file in the default browser, and exits. Source, fetch, and render errors occur before persistence or browser opening. If browser opening fails, the printed path and completed file remain available for manual opening.
 
 Generated pages support:
 
@@ -90,7 +104,9 @@ Generated pages support:
 - generation-time Mermaid diagrams as SVG
 - embedded eligible local images, responsive light/dark and print styles, and a restrictive content security policy
 
-Product assets, eligible local images, styles, highlighting, and diagrams are included in the static output. There is no server, listener, watcher, daemon, localhost request, or runtime JavaScript. Authored remote HTTP(S) image URLs remain remote and are not fetched while generating the file, but a browser may request them when the result is opened.
+Product assets, eligible local images, styles, highlighting, and diagrams are included in the static output. There is no product server, listener, watcher, daemon, or runtime JavaScript. URL sources are fetched once during generation with a direct blocking request: ambient proxy environment variables are ignored, redirects and time are bounded, and response bodies are never included in errors. Plain HTTP exposes the document and any URL-supplied Basic credentials to the network; prefer HTTPS. Credentials are sent only for the URL that supplies them and are not forwarded to a redirect target.
+
+Remote-relative links and images resolve against the final HTTP(S) response URL. Remote images are not downloaded or embedded during generation, but the browser may request them when the local result is opened. GitHub support only rewrites canonical `github.com/{owner}/{repo}/blob/...` links to GitHub's `/raw/` route.
 
 ### Code fences and diagrams
 
@@ -98,11 +114,11 @@ Syntax highlighting is available for Bash, C, C++, C#, CSS, Go, HTML, Java, Java
 
 Fence metadata is limited to `title="..."`, marked line ranges such as `{1,3-5}`, and inserted line ranges such as `ins={2}`. Ranges use comma-separated line numbers or inclusive `N-M` spans. Unsupported metadata fails with the fence location. Mermaid fences accept no code metadata. Invalid diagrams fail with source location and renderer detail; generated Mermaid SVG is trusted without an additional validation pass.
 
-### HTML and images
+### HTML, links, and images
 
 Authored raw HTML is escaped. Local image paths are percent-decoded and must resolve canonically to regular PNG, JPEG, GIF, WebP, or SVG files inside the source base directory. Missing, unsupported, absolute, protocol-relative, `data:`, `file:`, or directory-escaping local references fail generation. Query strings and fragments on local paths are discarded.
 
-Image type is determined from the extension; file signatures and SVG contents are not validated or sanitized. Authored SVG is embedded as a base64 `<img>` resource rather than trusted inline markup. Only open documents and local assets you trust.
+Remote relative and root-relative references resolve only to HTTP(S) URLs and never access local files. Unsafe schemes, protocol-relative forms, and backslashes are rejected. Remote images stay remote. Image type for embedded local assets is determined from the extension; file signatures and SVG contents are not validated or sanitized. Authored SVG is embedded as a base64 `<img>` resource rather than trusted inline markup. Only open documents and local assets you trust.
 
 ## Platform downloads and status
 
@@ -115,7 +131,9 @@ Release publication, hosted build testing, and native qualification are separate
 | x86-64 Linux (GNU) | `mdr-x86_64-unknown-linux-gnu.tar.xz` | Yes; glibc 2.35 build baseline | Not yet |
 | x86-64 Windows (MSVC) | `mdr-x86_64-pc-windows-msvc.zip` | Yes | Not yet |
 
-Each archive has a matching `.sha256` sidecar. Hosted build testing confirms that all four archives compile and package; it does not qualify desktop/browser behavior. The Linux artifact is evidenced only against the glibc 2.35 build environment, so compatibility with older glibc versions is not claimed.
+Each archive has a matching `.sha256` sidecar. Hosted build testing confirms that all four v0.1.0 archives compile and package; it does not qualify desktop/browser behavior. The Linux artifact is evidenced only against the glibc 2.35 build environment, so compatibility with older glibc versions is not claimed.
+
+For the unreleased source build, Apple Silicon macOS is locally qualified for direct `.md`/`.mdx`, stdin, HTTP, HTTPS, GitHub blob, remote references, timeout/oversize errors, generated-file inspection, and browser opening. Clipboard text/path/file URL/native-file behavior was functionally exercised, but native clipboard qualification remains incomplete because the pre-test clipboard value was not safely captured and verified after restoration. Linux, Intel macOS, and Windows remain unqualified until matching native desktop checks run; compilation alone does not qualify clipboard or browser behavior. On Linux, X11/XWayland and Wayland data-control support vary by session, and unsupported/headless environments return a clipboard-unavailable error.
 
 ## Project information
 
