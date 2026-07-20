@@ -147,7 +147,7 @@ It also configures shell and PowerShell installers, SHA-256 checksums, GitHub ho
 
 All four configured archives are build-tested by the non-publishing cargo-dist setup run. The Linux manifest records a glibc 2.35 build environment and linkage to system `libc`, `libgcc_s`, and `libm`; no older-glibc compatibility is claimed.
 
-The published v0.1.0 evidence remains unchanged: only **Apple Silicon macOS** was native-qualified for its file/stdin/browser boundary. For the unreleased source build, Apple Silicon macOS additionally passed local `.md`/`.mdx`, stdin, HTTP/HTTPS/GitHub, timeout/oversize, remote-reference, output, and browser checks. Clipboard text/path/file URL/native-file behavior passed functional smoke checks, but clipboard qualification remains incomplete because the pre-test value was not safely captured and verified after restoration. Intel macOS, x64 GNU/Linux, and x64 Windows remain unqualified for the new paths until the full matching desktop gate is performed.
+The published v0.1.0 evidence remains unchanged: only **Apple Silicon macOS** was native-qualified for its file/stdin/browser boundary. For v0.2.0, Apple Silicon macOS additionally passed local `.md`/`.mdx`, stdin, HTTP/HTTPS/GitHub, timeout/oversize, remote-reference, output, and browser checks. Clipboard text/path/file URL/native-file behavior passed functional smoke checks, but clipboard qualification remains incomplete because the pre-test value was not safely captured and verified after restoration. Intel macOS, x64 GNU/Linux, and x64 Windows remain unqualified for the new paths until the full matching desktop gate is performed.
 
 ## Product principles
 

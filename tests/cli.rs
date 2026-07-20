@@ -44,7 +44,7 @@ fn version_flags_print_exact_package_version() {
     for flag in ["-V", "--version"] {
         let output = run_mdr(&[flag]);
         assert_eq!(output.status.code(), Some(0));
-        assert_eq!(output.stdout, b"mdr 0.1.0\n");
+        assert_eq!(output.stdout, b"mdr 0.2.0\n");
         assert_eq!(output.stderr, b"");
     }
 }
