@@ -1,4 +1,6 @@
 .progress/
+.plans/
+.reviews/
 target/
 *.rs.bk
 *.log
