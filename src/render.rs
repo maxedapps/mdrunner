@@ -171,13 +171,16 @@ fn rewrite_link(raw: &str, asset_base: &Path) -> Result<String, AppError> {
 
     let base_url = Url::from_directory_path(asset_base)
         .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
+    let containment_base = base_url
+        .to_file_path()
+        .map_err(|()| AppError::new("Could not resolve the Markdown source directory."))?;
     let url = base_url
         .join(value)
         .map_err(|_| AppError::new("Unsafe or invalid link URL."))?;
     let target = url
         .to_file_path()
         .map_err(|()| AppError::new("Unsafe or invalid link URL."))?;
-    if !target.starts_with(asset_base) {
+    if !target.starts_with(&containment_base) {
         return Err(AppError::new("Unsafe or invalid link URL."));
     }
     Ok(url.to_string())
@@ -287,12 +290,17 @@ mod tests {
 
     #[test]
     fn authored_html_is_inert_and_links_are_resolved_safely() {
-        let source = file_source(
-            "<script>alert(1)</script>\n\n[local](<guide one.md#part>) [remote](https://example.com/a?q=1)\n",
-            "Links.md",
-        );
+        let directory = tempdir().unwrap();
+        let docs = directory.path().join("docs");
+        fs::create_dir(&docs).unwrap();
+        let asset_base = fs::canonicalize(docs).unwrap();
+        let source = MarkdownSource::File {
+            markdown: "<script>alert(1)</script>\n\n[local](<guide one.md#part>) [remote](https://example.com/a?q=1)\n".to_owned(),
+            canonical_path: asset_base.join("Links.md"),
+            asset_base,
+        };
         let mut expected_local = Url::from_file_path(source.asset_base().join("guide one.md"))
-            .expect("the test workspace is absolute");
+            .expect("the canonical test directory has a file URL");
         expected_local.set_fragment(Some("part"));
 
         let html = render_document(&source).unwrap();
