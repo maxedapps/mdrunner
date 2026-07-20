@@ -86,6 +86,23 @@ A target is **build-tested** only after native CI and cargo-dist build/package/c
 
 Record unavailable native checks as `build-tested, unqualified`; never infer qualification from compilation. Apple Silicon macOS may reuse the existing native evidence only while the release candidate has no material renderer, output, or browser-boundary change. Intel macOS, x64 GNU/Linux, and x64 Windows remain unqualified until matching evidence exists. Record the Linux glibc baseline from hosted linkage output; do not claim broad distro compatibility from the target triple.
 
+## v0.1.0 setup evidence
+
+Pull request [#1](https://github.com/maxedapps/mdr/pull/1) ran cargo-dist in temporary upload mode. [Release workflow run 29732047224](https://github.com/maxedapps/mdr/actions/runs/29732047224) passed planning, all four target builds, and global artifact generation. `host` and `announce` were skipped, so it created no tag, attestation, or GitHub Release.
+
+| Target | Archive bytes | SHA-256 | Build job |
+|---|---:|---|---|
+| Apple Silicon macOS | 3,339,148 | `6e3bdc72eec870b2a46cb021c2590fc32c561d8bea1e09ede41c6b3258981422` | [job 88318624606](https://github.com/maxedapps/mdr/actions/runs/29732047224/job/88318624606) |
+| Intel macOS | 3,471,988 | `910335d431d76b916bf246dc126ef16d3d3ab83127ad02be879d94ca1fee7087` | [job 88318624584](https://github.com/maxedapps/mdr/actions/runs/29732047224/job/88318624584) |
+| x64 GNU/Linux | 3,702,424 | `39257317dec4bbff61eb487d8be31c72305225322d6d0c2d799c04e8b7e34fd1` | [job 88318624674](https://github.com/maxedapps/mdr/actions/runs/29732047224/job/88318624674) |
+| x64 Windows | 5,248,797 | `058195d9ef61b4290a3b7258561a5fffe3848cd54409d060f88fc75baa117fa8` | [job 88318624576](https://github.com/maxedapps/mdr/actions/runs/29732047224/job/88318624576) |
+
+All archive sidecars and the unified `sha256.sum` verified. Every archive contains exactly the target executable plus `README.md`, `CHANGELOG.md`, and `LICENSE`. The global job produced `mdr-installer.sh` (52,829 bytes), `mdr-installer.ps1` (22,122 bytes), `sha256.sum`, `source.tar.gz` (118,348 bytes), and its sidecar. Granular plan/local/global manifests were retained as workflow artifacts; cargo-dist creates the final hosted `dist-manifest.json` only in the publication path.
+
+The Linux manifest records glibc 2.35 in the build environment and dynamic linkage only to system `libc.so.6`, `libgcc_s.so.1`, and `libm.so.6`; compatibility with older glibc versions is unverified. All four targets are build-tested. Only Apple Silicon macOS is native-qualified from the unchanged renderer/output/browser boundary; Intel macOS, GNU/Linux, and Windows remain unqualified.
+
+`dist plan --tag=v0.1.0` extracts the dated changelog section into a GitHub Release titled `0.1.0 - 2026-07-20`, followed by the generated installer, download, checksum, and attestation instructions. This exact prose and status boundary require owner approval before tagging.
+
 ## Approval and publication
 
 Before publication, assemble the reviewed commit hash, changelog prose, exact artifact inventory, checksum results, native-CI and setup-run URLs, qualification table, Linux baseline, and unsigned-artifact caveats. Obtain explicit owner approval. If desired, the owner may enable immutable GitHub Releases only after confirming the dry run and current cargo-dist draft/upload/release sequence are compatible.

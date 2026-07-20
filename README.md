@@ -112,12 +112,12 @@ Release publication, hosted build testing, and native qualification are separate
 
 | Platform | Planned v0.1.0 archive | Availability | Hosted build-tested | Native-qualified |
 | --- | --- | --- | --- | --- |
-| Apple Silicon macOS | `mdr-aarch64-apple-darwin.tar.xz` | After v0.1.0 publication | Not yet | Yes, from existing native file/stdin and browser checks |
-| Intel macOS | `mdr-x86_64-apple-darwin.tar.xz` | After v0.1.0 publication | Not yet | Not yet |
-| x86-64 Linux (GNU) | `mdr-x86_64-unknown-linux-gnu.tar.xz` | After v0.1.0 publication | Not yet | Not yet |
-| x86-64 Windows (MSVC) | `mdr-x86_64-pc-windows-msvc.zip` | After v0.1.0 publication | Not yet | Not yet |
+| Apple Silicon macOS | `mdr-aarch64-apple-darwin.tar.xz` | After v0.1.0 publication | Yes | Yes, from existing native file/stdin and browser checks |
+| Intel macOS | `mdr-x86_64-apple-darwin.tar.xz` | After v0.1.0 publication | Yes | Not yet |
+| x86-64 Linux (GNU) | `mdr-x86_64-unknown-linux-gnu.tar.xz` | After v0.1.0 publication | Yes; glibc 2.35 build baseline | Not yet |
+| x86-64 Windows (MSVC) | `mdr-x86_64-pc-windows-msvc.zip` | After v0.1.0 publication | Yes | Not yet |
 
-Each archive will have a matching `.sha256` sidecar. The three targets marked “Not yet” are configured release targets, but they have not been hosted-build-tested or natively qualified; this table does not make broader platform support claims.
+Each archive will have a matching `.sha256` sidecar. Hosted build testing confirms that all four archives compile and package; it does not qualify desktop/browser behavior. The Linux artifact is evidenced only against the glibc 2.35 build environment, so compatibility with older glibc versions is not claimed.
 
 ## Project information
 

@@ -129,7 +129,9 @@ It also configures shell and PowerShell installers, SHA-256 checksums, GitHub ho
 
 **Build-tested** means native CI and cargo-dist successfully built, packaged, and checksummed the configured artifact. **Native-qualified** additionally requires the desktop/browser smoke gate above on matching hardware. Compilation or packaging alone is not qualification.
 
-Only **Apple Silicon macOS** is currently native-qualified from the existing unchanged runtime boundary. Its current-host cargo-dist archive has also been locally built and inspected. Intel macOS, x64 GNU/Linux, and x64 Windows are configured but remain unqualified; they must not be called build-tested until the setup pull request succeeds for their hosted jobs. Linux compatibility must remain unspecified until the hosted linkage report establishes the glibc baseline.
+All four configured archives are build-tested by the non-publishing cargo-dist setup run. The Linux manifest records a glibc 2.35 build environment and linkage to system `libc`, `libgcc_s`, and `libm`; no older-glibc compatibility is claimed.
+
+Only **Apple Silicon macOS** is currently native-qualified from the existing unchanged runtime boundary. Its current-host and hosted cargo-dist archives have also been inspected. Intel macOS, x64 GNU/Linux, and x64 Windows remain build-tested but unqualified until the full matching desktop/browser gate is performed.
 
 ## Product principles
 
