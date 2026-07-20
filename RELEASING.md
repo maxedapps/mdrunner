@@ -15,7 +15,7 @@ This is the maintainer source of truth for cargo-dist setup, qualification, and 
 
 ## Configured outputs
 
-cargo-dist is pinned to 0.32.0 and plans these release assets for `v0.2.0`:
+cargo-dist is pinned to 0.32.0 and plans these release assets for `v0.2.1`:
 
 | Target | Archive | Executable |
 |---|---|---|
@@ -30,11 +30,11 @@ The generated release body exposes these no-Rust installers after publication:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/maxedapps/mdr/releases/download/v0.2.0/mdr-installer.sh | sh
+  https://github.com/maxedapps/mdr/releases/download/v0.2.1/mdr-installer.sh | sh
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/maxedapps/mdr/releases/download/v0.2.0/mdr-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/maxedapps/mdr/releases/download/v0.2.1/mdr-installer.ps1 | iex"
 ```
 
 ## Prepare the release candidate
@@ -112,15 +112,15 @@ Before publication, assemble the reviewed commit hash, changelog prose, planned 
 Only after approval, tag the reviewed commit:
 
 ```bash
-git tag -a v0.2.0 -m "Release 0.2.0"
-git push origin v0.2.0
+git tag -a v0.2.1 -m "Release 0.2.1"
+git push origin v0.2.1
 ```
 
 The generated tag workflow creates the GitHub Release; do not create a competing release manually.
 
 ## Post-publication verification
 
-1. Confirm `main`, `v0.2.0`, and the approved commit are the intended objects.
+1. Confirm `main`, `v0.2.1`, and the approved commit are the intended objects.
 2. Confirm the release title/body uses the matching changelog section and lists the approved target statuses and unsigned-artifact caveats.
 3. Download every asset and verify each archive sidecar plus `sha256.sum` using an OS-native SHA-256 tool.
 4. Inspect all four archives and run `mdr --version` on available native systems.
@@ -131,7 +131,7 @@ The generated tag workflow creates the GitHub Release; do not create a competing
    gh attestation verify <downloaded-asset> --repo maxedapps/mdr
    ```
 
-7. Confirm the new empty `Unreleased` comparison link starts at `v0.2.0`.
+7. Confirm the new empty `Unreleased` comparison link starts at `v0.2.1`.
 
 Checksums detect corruption but do not authenticate the publisher. GitHub attestations provide hosted build provenance but are not macOS notarization, Windows Authenticode, or another platform signature.
 

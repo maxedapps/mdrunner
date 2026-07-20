@@ -4,12 +4,12 @@
 
 ## Install
 
-Prebuilt v0.2.0 archives and installers do not require Rust.
+Prebuilt v0.2.1 archives and installers do not require Rust.
 
 ### macOS or Linux
 
 ```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/maxedapps/mdr/releases/download/v0.2.0/mdr-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/maxedapps/mdr/releases/download/v0.2.1/mdr-installer.sh | sh
 ```
 
 A complete render requires a graphical environment and a configured default browser. On Linux, opening the result also depends on an available desktop browser opener.
@@ -19,14 +19,14 @@ A complete render requires a graphical environment and a configured default brow
 Run in PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/maxedapps/mdr/releases/download/v0.2.0/mdr-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/maxedapps/mdr/releases/download/v0.2.1/mdr-installer.ps1 | iex"
 ```
 
 A complete render requires a graphical environment and a configured default browser.
 
 ### Manual download and SHA-256 check
 
-Download the archive for your platform and its matching `.sha256` file from the [v0.2.0 release](https://github.com/maxedapps/mdr/releases/tag/v0.2.0). Verify the archive before extracting it, then place `mdr` (`mdr.exe` on Windows) somewhere on your `PATH`.
+Download the archive for your platform and its matching `.sha256` file from the [v0.2.1 release](https://github.com/maxedapps/mdr/releases/tag/v0.2.1). Verify the archive before extracting it, then place `mdr` (`mdr.exe` on Windows) somewhere on your `PATH`.
 
 On macOS, for example:
 
@@ -127,16 +127,16 @@ Remote relative and root-relative references resolve only to HTTP(S) URLs and ne
 
 Release publication, hosted build testing, and native qualification are separate.
 
-| Platform | v0.2.0 archive | Hosted build-tested | Native-qualified |
+| Platform | v0.2.1 archive | Hosted build-tested | Native-qualified |
 | --- | --- | --- | --- |
-| Apple Silicon macOS | `mdr-aarch64-apple-darwin.tar.xz` | Yes | Yes for local `.md`/`.mdx`, stdin, URL, output, and browser flows; native clipboard qualification remains incomplete |
+| Apple Silicon macOS | `mdr-aarch64-apple-darwin.tar.xz` | Yes | Not yet for v0.2.1; v0.2.0 evidence is retained below |
 | Intel macOS | `mdr-x86_64-apple-darwin.tar.xz` | Yes | Not yet |
 | x86-64 Linux (GNU) | `mdr-x86_64-unknown-linux-gnu.tar.xz` | Yes; glibc 2.35 build baseline | Not yet |
 | x86-64 Windows (MSVC) | `mdr-x86_64-pc-windows-msvc.zip` | Yes | Not yet |
 
-Each archive has a matching `.sha256` sidecar. Hosted build testing confirms that all four v0.2.0 archives compile and package; it does not qualify desktop/browser behavior. The Linux artifact is evidenced only against the glibc 2.35 build environment, so compatibility with older glibc versions is not claimed.
+Each archive has a matching `.sha256` sidecar. Hosted build testing confirms that all four v0.2.1 archives compile and package; it does not qualify desktop/browser behavior. The Linux artifact is evidenced only against the glibc 2.35 build environment, so compatibility with older glibc versions is not claimed.
 
-Apple Silicon macOS is locally qualified for direct `.md`/`.mdx`, stdin, HTTP, HTTPS, GitHub blob, remote references, timeout/oversize errors, generated-file inspection, and browser opening. Clipboard text/path/file URL/native-file behavior was functionally exercised, but native clipboard qualification remains incomplete because the pre-test clipboard value was not safely captured and verified after restoration. Linux, Intel macOS, and Windows remain unqualified until matching native desktop checks run; compilation alone does not qualify clipboard or browser behavior. On Linux, X11/XWayland and Wayland data-control support vary by session, and unsupported/headless environments return a clipboard-unavailable error.
+The v0.2.0 Apple Silicon macOS build was locally qualified for direct `.md`/`.mdx`, stdin, HTTP, HTTPS, GitHub blob, remote references, timeout/oversize errors, generated-file inspection, and browser opening. Clipboard text/path/file URL/native-file behavior was functionally exercised, but native clipboard qualification remained incomplete because the pre-test clipboard value was not safely captured and verified after restoration. No v0.2.1 archive is newly native-qualified. Linux, Intel macOS, and Windows remain unqualified until matching native desktop checks run; compilation alone does not qualify clipboard or browser behavior. On Linux, X11/XWayland and Wayland data-control support vary by session, and unsupported/headless environments return the documented clipboard error.
 
 ## Project information
 
