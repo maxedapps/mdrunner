@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`mdr` is a small synchronous Rust CLI that turns one Markdown source into one finished, self-contained HTML file, opens the file in the user's default browser, and exits.
+`mdr` is a small synchronous Rust CLI that turns one Markdown source into one finished, self-contained HTML file, optionally opens the file in the user's default browser, and exits.
 
 ```bash
 mdr ./README.md
@@ -22,18 +22,18 @@ purely select file, HTTP(S) URL, redirected stdin, or terminal clipboard
   → parse one Comrak AST and prepare links, images, title, and code locations
   → render code with Lumis and Mermaid with the native renderer
   → assemble one complete inline-CSS HTML5 document
-  → atomically persist the deterministic cache file
+  → atomically persist the deterministic cache file or exact custom destination
   → print its absolute path
-  → open its encoded file:// URL with the default browser
+  → optionally open its encoded file:// URL with the default browser
   → exit
 ```
 
-All meaningful rendering finishes before persistence and browser opening. Failures before persistence print no output path. A browser-opening failure happens after the valid path has been printed and retained.
+All meaningful rendering finishes before persistence and optional browser opening. Failures before persistence print no output path. A browser-opening failure happens after the valid path has been printed and retained; `--no-open` returns successfully after printing.
 
 ## CLI and source contract
 
-- Accept exact `-h`/`--help`, `-V`/`--version`, one case-insensitive `.md`/`.mdx` path, one absolute host-bearing HTTP(S) URL, redirected stdin, or terminal clipboard. Use `-- -notes.md` or `./-notes.md` for a dash-prefixed filename.
-- Selection is pure and ordered: help/version, option termination, argument validation, redirected stdin, clipboard. Unknown options, malformed explicit HTTP(S) URLs, and unsupported explicit `scheme://` URLs fail before cwd, file handling, clipboard, network, render, output, or browser work. Schemeless values such as `www.example.com/readme.md` remain local path candidates.
+- Accept exact standalone `-h`/`--help` and `-V`/`--version`, optional `--no-open`, optional `--out <path>`, one case-insensitive `.md`/`.mdx` path, one absolute host-bearing HTTP(S) URL, redirected stdin, or terminal clipboard. Options may surround the source and combine in either order. Use `-- -notes.md` or `./-notes.md` for a dash-prefixed source and `./-page.html` for a dash-prefixed output.
+- Selection is pure and ordered: standalone help/version, options and option termination, one source, redirected stdin, clipboard. Reject unknown/repeated options, `--out=...`, missing or option-shaped `--out` values, malformed explicit HTTP(S) URLs, and unsupported explicit `scheme://` URLs before cwd, file handling, clipboard, network, render, output, or browser work. `--` ends option parsing. Schemeless values such as `www.example.com/readme.md` remain local path candidates.
 - Canonicalize local files and require a regular file. Native clipboard file lists are authoritative and must contain exactly one supported file; only absent/empty lists fall through to text.
 - Classify trimmed single-line clipboard `.md`/`.mdx` paths and `file://` URLs through the shared file loader. Preserve all other non-empty clipboard text exactly and never auto-fetch copied HTTP(S) text.
 - Stream file, stdin, clipboard-selected-file, and decoded HTTP bodies through one 10 MiB + 1 boundary. Apply the same byte limit to materialized clipboard text. Require strict UTF-8; remote content must also be non-whitespace.
@@ -80,7 +80,7 @@ The local policy is intentionally containment-based: there is no file-signature 
 
 ## Persistence and browser boundary
 
-The destination shape is:
+Without `--out`, the destination shape is:
 
 ```text
 <tmp>/mdr/<sha256-source-identity>/<portable-name>.html
@@ -90,9 +90,9 @@ File identity is the canonical source path, so content changes reuse the same de
 
 File names replace control and cross-platform-forbidden characters, trim trailing dots/spaces, preserve other Unicode, and fall back to `document` for empty or reserved device stems. Stdin uses `stdin.html`, clipboard text uses `clipboard.html`, and remote output uses a final-path-derived stem.
 
-A named temporary sibling is created in the destination directory, receives the complete HTML bytes, and is atomically persisted over the destination. Crash-durability synchronization and backup/restore machinery are out of scope.
+`--out <path>` replaces cache selection with one exact custom file destination. Relative paths resolve against cwd, absolute paths are retained, missing parent directories are created, no extension is added, and no cache copy is written. A named temporary sibling is created in the selected destination directory, receives the complete HTML bytes, and is atomically persisted over the destination, replacing any existing file. Crash-durability synchronization and backup/restore machinery are out of scope.
 
-The absolute destination is converted to an encoded `file://` URL and handed directly to the platform default browser. The CLI creates no HTTP listener, localhost request, child service, or long-running process.
+The CLI always prints and flushes the absolute completed destination. Unless `--no-open` is present, that same destination is converted to an encoded `file://` URL and handed directly to the platform default browser. The CLI creates no HTTP listener, localhost request, child service, or long-running process.
 
 ## Technology and dependencies
 
@@ -116,7 +116,8 @@ Direct dependencies are intentionally narrow:
 
 ```bash
 cargo run -- README.md
-cat README.md | cargo run --quiet
+cargo run -- --no-open --out ./target/README.html README.md
+cat README.md | cargo run --quiet -- --no-open
 
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
@@ -124,9 +125,9 @@ cargo test --locked
 cargo build --release --locked
 ```
 
-Tests protect distinct visible contracts: source precedence/errors, fake clipboard authority, shared source limits, loopback HTTP redirects/auth/MIME/decoded bodies, GitHub normalization, local/remote resource isolation, GFM/static shell behavior, bounded code metadata, native Mermaid diagnostics, image containment/embedding, deterministic atomic output, encoded file URLs, and one representative document. Prefer semantic assertions over renderer-owned snapshots or implementation-shape tests. Automated tests do not use a real clipboard, public network, or browser.
+Tests protect distinct visible contracts: CLI option/source precedence and errors, fake clipboard authority, shared source limits, loopback HTTP redirects/auth/MIME/decoded bodies, GitHub normalization, local/remote resource isolation, GFM/static shell behavior, bounded code metadata, native Mermaid diagnostics, image containment/embedding, deterministic and custom atomic output, optional browser orchestration, encoded file URLs, and one representative document. Prefer semantic assertions over renderer-owned snapshots or implementation-shape tests. Automated tests do not use a real clipboard, public network, or browser.
 
-Release qualification additionally records each local, stdin, clipboard, HTTP, HTTPS, GitHub, remote-reference, timeout/oversize, output, and browser mode separately on matching native desktops. Compilation does not qualify clipboard or browser behavior. Maintainers follow [RELEASING.md](RELEASING.md).
+Release qualification additionally records each local, stdin, clipboard, HTTP, HTTPS, GitHub, remote-reference, timeout/oversize, default/custom output, replacement, no-open, and browser mode separately on matching native desktops. Compilation or another OS does not qualify clipboard, custom replacement, or browser behavior. Maintainers follow [RELEASING.md](RELEASING.md).
 
 ## CI and release automation
 
@@ -152,7 +153,7 @@ The published v0.1.0 evidence remains unchanged: only **Apple Silicon macOS** wa
 ## Product principles
 
 1. Keep one obvious command and one linear synchronous flow.
-2. Finish Markdown, code, diagrams, CSS, and local assets before opening the browser.
+2. Finish Markdown, code, diagrams, CSS, and local assets before optionally opening the browser.
 3. Produce deterministic, self-contained, directly loadable local HTML.
 4. Keep authored executable content inert and local image access contained.
 5. Prefer bounded behavior and semantic tests over compatibility frameworks.
